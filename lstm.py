@@ -16,22 +16,13 @@ weight_decay = 1e-5
 lr = 1e-3
 
 def read_file(fileName):
+    text = []
+    labels = []
+    return text, labels
 
-    f = open(fileName, 'r')
-    lines = f.readlines()
-    f.close()
-    text =  [ ]
-    labels = [ ]
-    for line in lines:
-        text.append(line[2:].strip())
-        labels.append(int(line[0]))
-
-    return text,labels
-
-
-train_x, train_y = read_file("../data/stsa.binary.train")
-dev_x, dev_y = read_file("../data/stsa.binary.dev")
-test_x, test_y = read_file("../data/stsa.binary.test")
+train_x, train_y = read_file("../askubuntu-master/train_random.txt")
+dev_x, dev_y = read_file("../askubuntu-master/dev.txt")
+test_x, test_y = read_file("../askubuntu-master/test.txt")
 
 f = gzip.open('../word_vectors.txt.gz', 'r')
 wv_text = [ ]

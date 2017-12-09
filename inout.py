@@ -49,6 +49,35 @@ def sentence2vec(sentence, word_embeddings):
 			feature += word_embeddings[word]
 	return feature / float(num_words)
 
+def create_vector_samples(id_samples):
+    '''
+    for each sample, output tuple of 2 lists: title, body
+    [title vector of q: title vector of p, title vector of n's]
+    '''
+    all_samples = []
+    for sample in id_samples:
+        sample_title = []
+        sample_body = []
+        q = sample[0] 
+        pos = sample[1] 
+        neg = sample[2:] 
+        corpus = read_corpus('../data/askubuntu-master/text_tokenized.txt')
+        q_title = sentence2vec(corpus[q][0])
+        q_body = sentence2vec(corpus[q][1])
+        sample_title.append(q_title)
+        sample_title.append(pos_title)
+        pos_title = sentence2vec(corpus[pos][0])
+        pos_body = sentence2vec(corpus[pos][1])
+        sample_body.append(q_body)
+        sample_body.append(pos_body)
+        for neg_example in neg:
+            neg_title =  sentence2vec(corpus[neg_example][0])
+            neg_body = sentence2vec(corpus[neg_example][1])
+            sample_title.append(neg_title)
+            sample_body.append(neg_body)
+        all_samples.append((sample_title, sample_body))
+    return all_samples
+
 def load_embedding_iterator(path):
     file_open = gzip.open if path.endswith(".gz") else open
     with file_open(path) as emb_file:

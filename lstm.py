@@ -24,7 +24,7 @@ train_x, train_y = read_file("../data/askubuntu-master/train_random.txt")
 dev_x, dev_y = read_file("../data/askubuntu-master/dev.txt")
 test_x, test_y = read_file("../data/askubuntu-master/test.txt")
 
-f = gzip.open('../word_vectors.txt.gz', 'r')
+f = open('../data/askubuntu-master/vector/vectors_pruned.200.txt', 'r')
 wv_text = [ ]
 lines = f.readlines()
 for line in lines:

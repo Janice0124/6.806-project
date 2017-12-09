@@ -20,9 +20,9 @@ def read_file(fileName):
     labels = []
     return text, labels
 
-train_x, train_y = read_file("../askubuntu-master/train_random.txt")
-dev_x, dev_y = read_file("../askubuntu-master/dev.txt")
-test_x, test_y = read_file("../askubuntu-master/test.txt")
+train_x, train_y = read_file("../data/askubuntu-master/train_random.txt")
+dev_x, dev_y = read_file("../data/askubuntu-master/dev.txt")
+test_x, test_y = read_file("../data/askubuntu-master/test.txt")
 
 f = gzip.open('../word_vectors.txt.gz', 'r')
 wv_text = [ ]

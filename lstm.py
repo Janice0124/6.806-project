@@ -1,3 +1,10 @@
+'''
+dic: {q: ([p, p], [n, n, n, ...])}
+for q:
+    for p:
+        create sample: (q, p, 20 randos)
+'''
+
 import numpy as np
 from sklearn import metrics
 import torch
@@ -10,7 +17,7 @@ import gzip
 
 torch.manual_seed(1)
 
-batch_size = 173
+batch_size = 20
 hidden_dim = 300
 weight_decay = 1e-5
 lr = 1e-3
@@ -42,7 +49,7 @@ def extract_features(data):
     features = [ ]
     for i in range(len(data)):
         num_words = 0
-        current_feature = [ 0.0 for _ in range(300) ]
+        current_feature = [ 0.0 for _ in range(200) ]
         for word in data[i].split():
             if word in word_to_vec:
                 current_feature += word_to_vec[word]/np.linalg.norm(word_to_vec[word])
@@ -72,11 +79,7 @@ class FFN(nn.Module):
         super(FFN, self).__init__()
         self.seq = nn.Sequential(
                 nn.Linear(input_dim, hidden_dim),
-                nn.Tanh(),
-                nn.Linear(hidden_dim, output_dim),
-                nn.Tanh(),
-                nn.LogSoftmax()
-                )
+                nn.Tanh()              )
 
 
     def forward(self, x):

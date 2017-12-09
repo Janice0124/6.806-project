@@ -1,7 +1,9 @@
 import sys
 import gzip
 import random
+import numpy as np
 
+# text_tokenized.txt.gz
 def read_corpus(path):
     raw_corpus = {}
     fopen = gzip.open if path.endswith(".gz") else open
@@ -13,6 +15,7 @@ def read_corpus(path):
             raw_corpus[query_id] = (title, body)
     return raw_corpus
 
+# train_random.txt
 def read_train_set(path):
 	train_corpus = {}
 	with open(path) as txt_file:
@@ -23,6 +26,28 @@ def read_train_set(path):
 			neg = neg.split()
 			train_corpus[pid] = (pos, neg)
 	return train_corpus
+
+# vectors_pruned.200.txt.gz
+def read_word_embeddings(path):
+	word_embs = {}
+	fopen = gzip.open if path.endswith(".gz") else open
+	with fopen(path) as corpus:
+		for line in corpus:
+			parts = line.strip().split(" ")
+			word = parts[0]
+			vec = np.array([float(v) for v in parts[1:]])
+			word_embs[word] = vec
+	return word_embs
+
+def sentence2vec(sentence, word_embeddings):
+	words = sentence.split(" ")
+	feature = [0.0 for i in range(200)]
+	num_words = 0
+	for word in words:
+		if word in word_embeddings:
+			num_words += 1
+			feature += word_embeddings[word]
+	return feature / float(num_words)
 
 def load_embedding_iterator(path):
     file_open = gzip.open if path.endswith(".gz") else open

@@ -15,6 +15,26 @@ def read_corpus(path):
             raw_corpus[query_id] = (title, body)
     return raw_corpus
 
+def create_id_samples(dic):
+    '''
+    dic: {q: ([p, p], [n, n, n, ...])}
+    for q:
+        for p:
+            create sample: (q, p, 20 random negatives)
+    create batches (list of lists)
+    '''
+    samples = []
+    for q in dic:
+        pos, neg = dic[q]
+        for p in pos:
+            len_negatives = len(neg)
+            indices = np.random.choice(len_negatives, 20, replace=False)
+            sample = [q, p]
+            for index in indices:
+                sample.append(neg[index])
+            samples.append(sample)
+    return samples
+
 # train_random.txt
 def read_train_set(path):
 	train_corpus = {}

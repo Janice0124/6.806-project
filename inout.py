@@ -13,6 +13,17 @@ def read_corpus(path):
             raw_corpus[query_id] = (title, body)
     return raw_corpus
 
+def read_train_set(path):
+	train_corpus = {}
+	with open(path) as txt_file:
+		for line in txt_file:
+			parts = line.split("\t")
+			pid, pos, neg = parts[:3]
+			pos = pos.split()
+			neg = neg.split()
+			train_corpus[pid] = (pos, neg)
+	return train_corpus
+
 def load_embedding_iterator(path):
     file_open = gzip.open if path.endswith(".gz") else open
     with file_open(path) as emb_file:
@@ -23,6 +34,8 @@ def load_embedding_iterator(path):
                 word = parts[0]
                 values = np.array([ float(x) for x in parts[1:] ])
                 yield word, values
+
+
 
 
 class EmbeddingLayer(object):

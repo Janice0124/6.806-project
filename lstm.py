@@ -73,18 +73,26 @@ train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size)
 dev_loader = torch.utils.data.DataLoader(dev_dataset)
 test_loader = torch.utils.data.DataLoader(test_dataset)
 
-class FFN(nn.Module):
+class DAN(nn.Module):
 
-    def __init__(self, input_dim, hidden_dim, output_dim):
-        super(FFN, self).__init__()
-        self.seq = nn.Sequential(
-                nn.Linear(input_dim, hidden_dim),
-                nn.Tanh()              )
+    def __init__(self, embeddings, args):
+        super(DAN, self).__init__()
+        self.args = args
+        vocab_size, embedding_dim = embeddings.shape
+        self.W_hidden = nn.Linear(embedding_dim, embedding_dim)
+        self.W_out = nn.Linear(embedding_dim, 100)
+        # self.seq = nn.Sequential(
+        #         nn.Linear(input_dim, hidden_dim),
+        #         nn.Tanh()              )
 
 
     def forward(self, x):
-        x = self.seq(x)
-        return x
+        all_embeddings = self.embedding_layer(x)
+        avg_embeddings = torch.mean(all_embeddings, dim=1)
+        hidden = nn.Tanh(self.W_hidden(avg_embeddings))
+        return self.W_out(hidden)
+        # x = self.seq(x)
+        # return x
 
 
 def evaluate(model, loader):
@@ -102,18 +110,34 @@ def evaluate(model, loader):
 
 
 def train(model, loader, max_epoches, dev_loader, test_loader, verbose=False):
-    criterion = nn.NLLLoss()
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-
+    criterion = torch.nn.MultiMarginLoss()
     best_dev = 0.0
     corresponding_test = 0.0
     for epoch in range(max_epoches):
-        model.train()
-        for data, label in train_loader:
-            data, label = Variable(data), Variable(label)
-            model.zero_grad()
-            output = model(data)
-            loss = criterion(output, label)
+        for data in train_loader:
+            data = Variable(data)
+            title_embeddings = autograd.Variable(data['titles']) # janice pass this in
+            body_embeddings = autograd.Variable(data['bodies'])
+            title_output = model(title_embeddings)
+            body_output = model(body_embeddings)
+            question_output = np.mean(title_output, body_output, axis=0)
+            '''
+            create matrix by iterating from 0 to 20, 0 to 21:
+            x = 20x21 matrix, mapping q to cosine similarity of each of 21 questions for each set of 22 questions
+            y = list of positive question indices, which is always 0 in that row
+            '''
+
+            X = np.zeros((20,21))
+            for i in range(20): # b rows, b = number of instances in a batch
+                for j in range(21):
+                    X[i,j] = F.cosine_similarity(question_embeddings[i][0], question_embeddings[i][j])
+
+            Y = np.array([0 for i in range(20)])
+            model.train()
+            optimizer.zero_grad()
+
+            loss = criterion(torch.cat(X), Variable(torch.FloatTensor(Y))
             loss.backward()
             optimizer.step()
 

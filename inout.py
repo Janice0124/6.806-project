@@ -4,6 +4,7 @@ import random
 import numpy as np
 
 # text_tokenized.txt.gz
+# maps query IDs to their title and body, body is a list of words
 def read_corpus(path):
     raw_corpus = {}
     fopen = gzip.open if path.endswith(".gz") else open
@@ -15,27 +16,8 @@ def read_corpus(path):
             raw_corpus[query_id] = (title, body)
     return raw_corpus
 
-def create_id_samples(dic):
-    '''
-    dic: {q: ([p, p], [n, n, n, ...])}
-    for q:
-        for p:
-            create sample: (q, p, 20 random negatives)
-    create batches (list of lists)
-    '''
-    samples = []
-    for q in dic:
-        pos, neg = dic[q]
-        for p in pos:
-            len_negatives = len(neg)
-            indices = np.random.choice(len_negatives, 20, replace=False)
-            sample = [q, p]
-            for index in indices:
-                sample.append(neg[index])
-            samples.append(sample)
-    return samples
-
 # train_random.txt
+# maps query IDs to list of similar IDs and list of negative IDs
 def read_train_set(path):
 	train_corpus = {}
 	with open(path) as txt_file:
@@ -47,7 +29,26 @@ def read_train_set(path):
 			train_corpus[pid] = (pos, neg)
 	return train_corpus
 
+# Creates train samples using only IDs
+def create_id_samples(id_dict):
+    '''
+	    id_dict: {q: ([p, p], [n, n, n, ...])}
+	    for q:
+	        for p:
+	            create sample: (q, p, 20 random negatives)
+    '''
+    samples = []
+    for qid in id_dict:
+        pos, neg = id_dict[qid]
+        for p in pos:
+            len_neg = len(neg)
+            indices = np.random.choice(len_neg, 20, replace=False)
+            sample = [qid, p] + [neg[index] for index in indices]
+            samples.append(sample)
+    return samples
+
 # vectors_pruned.200.txt.gz
+# Maps a word to 200-dimension (1D array) feature vector
 def read_word_embeddings(path):
 	word_embs = {}
 	fopen = gzip.open if path.endswith(".gz") else open
@@ -59,166 +60,54 @@ def read_word_embeddings(path):
 			word_embs[word] = vec
 	return word_embs
 
-def sentence2vec(sentence, word_embeddings):
-	words = sentence.split(" ")
-	feature = [0.0 for i in range(200)]
+# Turns a sentence into a feature vector by taking the average
+# of all the word embeddings -> outputs 200-dimension 1D array
+def line2vec(sentence, word_embeddings):
+	feature = np.array([0.0 for i in range(200)])
 	num_words = 0
-	for word in words:
+	for word in sentence:
 		if word in word_embeddings:
 			num_words += 1
 			feature += word_embeddings[word]
-	return feature / float(num_words)
+	return feature / float(num_words) if num_words != 0 else feature
 
-def create_vector_samples(id_samples):
+# Creates train samples using actual feature vectors 
+# (converts from ID to question to vector)
+def create_training_samples(id_samples, word_embs, raw_corpus):
     '''
     for each sample, output tuple of 2 lists: title, body
     [title vector of q: title vector of p, title vector of n's]
     '''
     all_samples = []
     for sample in id_samples:
-        sample_title = []
-        sample_body = []
-        q = sample[0] 
-        pos = sample[1] 
-        neg = sample[2:] 
-        corpus = read_corpus('../data/askubuntu-master/text_tokenized.txt')
-        q_title = sentence2vec(corpus[q][0])
-        q_body = sentence2vec(corpus[q][1])
-        sample_title.append(q_title)
-        sample_title.append(pos_title)
-        pos_title = sentence2vec(corpus[pos][0])
-        pos_body = sentence2vec(corpus[pos][1])
-        sample_body.append(q_body)
-        sample_body.append(pos_body)
-        for neg_example in neg:
-            neg_title =  sentence2vec(corpus[neg_example][0])
-            neg_body = sentence2vec(corpus[neg_example][1])
-            sample_title.append(neg_title)
-            sample_body.append(neg_body)
-        all_samples.append((sample_title, sample_body))
+    	title_sample = []
+    	body_sample = []
+    	for qid in sample:
+    		title, body = raw_corpus[qid]
+    		title_sample.append(line2vec(title, word_embs))
+    		body_sample.append(line2vec(body, word_embs))
+    	all_samples.append((title_sample, body_sample))
     return all_samples
 
-def load_embedding_iterator(path):
-    file_open = gzip.open if path.endswith(".gz") else open
-    with file_open(path) as emb_file:
-        for line in emb_file:
-            line = line.strip()
-            if line:
-                parts = line.split()
-                word = parts[0]
-                values = np.array([ float(x) for x in parts[1:] ])
-                yield word, values
+def create_train_batches(batch_size):
+	samples = train_samples
+	title_batches = []
+	body_batches = []
+	num_batches = int(len(samples) / batch_size)
+	for i in range(num_batches):
+		title_batch = []
+		body_batch = []
+		for j in range(batch_size):
+			title, body = samples[i * batch_size + j]
+			title_batch.extend(title)
+			body_batch.extend(body)
+		title_batches.append(title_batch)
+		body_batches.append(body_batch)
+	return (title_batches, body_batches)
 
-
-
-
-class EmbeddingLayer(object):
-    '''
-        Embedding layer that
-                (1) maps string tokens into integer IDs
-                (2) maps integer IDs into embedding vectors (as matrix)
-        Inputs
-        ------
-        vocab           : an iterator of string tokens; the layer will allocate an ID
-                            and a vector for each token in it
-        oov             : out-of-vocabulary token
-        embs            : an iterator of (word, vector) pairs; these will be added to
-                            the layer
-    '''
-    def __init__(self, vocab, oov="<unk>", embs=None):
-        if embs is not None:
-            lst_words = []
-            vocab_map = {}
-            emb_vals = []
-            for word, vector in embs:
-                vocab_map[word] = len(vocab_map)
-                emb_vals.append(vector)
-                lst_words.append(word)
-
-            for word in vocab:
-                if word not in vocab_map:
-                    vocab_map[word] = len(vocab_map)
-                    emb_vals.append(random_init((200,))*(0.001 if word != oov else 0.0))
-                    lst_words.append(word)
-
-            emb_vals = np.vstack(emb_vals)
-            self.vocab_map = vocab_map
-            self.lst_words = lst_words
-        else:
-            lst_words = [ ]
-            vocab_map = {}
-            for word in vocab:
-                if word not in vocab_map:
-                    vocab_map[word] = len(vocab_map)
-                    lst_words.append(word)
-
-            self.lst_words = lst_words
-            self.vocab_map = vocab_map
-            emb_vals = random_init((len(self.vocab_map), 200))
-            self.init_end = -1
-
-        if oov is not None and oov is not False:
-            assert oov in self.vocab_map, "oov {} not in vocab".format(oov)
-            self.oov_tok = oov
-            self.oov_id = self.vocab_map[oov]
-        else:
-            self.oov_tok = None
-            self.oov_id = -1
-
-        self.embeddings = create_shared(emb_vals)
-        if self.init_end > -1:
-            self.embeddings_trainable = self.embeddings[self.init_end:]
-        else:
-            self.embeddings_trainable = self.embeddings
-
-        self.n_V = len(self.vocab_map)
-        self.n_d = 200
-
-    def map_to_words(self, ids):
-        n_V, lst_words = self.n_V, self.lst_words
-        return [ lst_words[i] if i < n_V else "<err>" for i in ids ]
-
-    def map_to_ids(self, words, filter_oov=False):
-        '''
-            map the list of string tokens into a numpy array of integer IDs
-            Inputs
-            ------
-            words           : the list of string tokens
-            filter_oov      : whether to remove oov tokens in the returned array
-            Outputs
-            -------
-            return the numpy array of word IDs
-        '''
-        vocab_map = self.vocab_map
-        oov_id = self.oov_id
-        if filter_oov:
-            not_oov = lambda x: x!=oov_id
-            return np.array(
-                    filter(not_oov, [ vocab_map.get(x, oov_id) for x in words ]),
-                    dtype="int32"
-                )
-        else:
-            return np.array(
-                    [ vocab_map.get(x, oov_id) for x in words ],
-                    dtype="int32"
-                )
-
-    def forward(self, x):
-        '''
-            Fetch and return the word embeddings given word IDs x
-            Inputs
-            ------
-            x           : an array of integer IDs
-            Outputs
-            -------
-            a matrix of word embeddings
-        '''
-        return self.embeddings[x]
-
-    @property
-    def params(self):
-        return [ self.embeddings_trainable ]
-
-    @params.setter
-    def params(self, param_list):
-        self.embeddings.set_value(param_list[0].get_value())
+train_ids = read_train_set("../data/askubuntu-master/train_random.txt")
+id_samples = create_id_samples(train_ids)
+word_embeddings = read_word_embeddings("../data/askubuntu-master/vector/vectors_pruned.200.txt")
+raw_corpus = read_corpus("../data/askubuntu-master/text_tokenized.txt.gz")
+train_samples = create_training_samples(id_samples, word_embeddings, raw_corpus)
+title_batches, body_batches = create_train_batches(20)

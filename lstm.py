@@ -79,8 +79,7 @@ class FFN(nn.Module):
         super(FFN, self).__init__()
         self.seq = nn.Sequential(
                 nn.Linear(input_dim, hidden_dim),
-                nn.Tanh()              )
-
+                nn.Tanh())
 
     def forward(self, x):
         x = self.seq(x)

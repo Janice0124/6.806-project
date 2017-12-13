@@ -1,10 +1,3 @@
-'''
-dic: {q: ([p, p], [n, n, n, ...])}
-for q:
-    for p:
-        create sample: (q, p, 20 randos)
-'''
-
 import numpy as np
 from sklearn import metrics
 import torch
@@ -14,64 +7,40 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torch.utils.data
 import gzip
+import inout
+
+train_file = "../data/askubuntu-master/train_random.txt"
+dev_file = "../data/askubuntu-master/dev.txt"
+test_file = "../data/askubuntu-master/test.txt"
+word_embs_file = "../data/askubuntu-master/vector/vectors_pruned.200.txt"
+query_corpus_file = "../data/askubuntu-master/text_tokenized.txt.gz"
 
 torch.manual_seed(1)
 
 batch_size = 20
+
 hidden_dim = 300
 weight_decay = 1e-5
 lr = 1e-3
 
-def read_file(fileName):
-    text = []
-    labels = []
-    return text, labels
+# train_x, train_y = read_file("../data/askubuntu-master/train_random.txt")
+# dev_x, dev_y = read_file("../data/askubuntu-master/dev.txt")
+# test_x, test_y = read_file("../data/askubuntu-master/test.txt")
+# f = open('../data/askubuntu-master/vector/vectors_pruned.200.txt', 'r')
 
-train_x, train_y = read_file("../data/askubuntu-master/train_random.txt")
-dev_x, dev_y = read_file("../data/askubuntu-master/dev.txt")
-test_x, test_y = read_file("../data/askubuntu-master/test.txt")
+# train_x = extract_features(train_x)
+# dev_x = extract_features(dev_x)
+# test_x = extract_features(test_x)
 
-f = open('../data/askubuntu-master/vector/vectors_pruned.200.txt', 'r')
-wv_text = [ ]
-lines = f.readlines()
-for line in lines:
-    wv_text.append(line.strip())
+train_batches, dev_data, dev_labels, test_data, test_labels = inout.build_batches(train_file, dev_file, test_file, word_embs_file, query_corpus_file, 20)
 
-word_to_vec = {}
+# train_dataset = torch.utils.data.TensorDataset(torch.FloatTensor(train_x), torch.LongTensor(train_y))
+# dev_dataset = torch.utils.data.TensorDataset(torch.FloatTensor(dev_x), torch.LongTensor(dev_y))
+# test_dataset = torch.utils.data.TensorDataset(torch.FloatTensor(test_x), torch.LongTensor(test_y))
 
-for line in wv_text:
-    parts = line.split()
-    word = parts[0]
-    vector = np.array([float(v) for v in parts[1:]])
-    word_to_vec[word] = vector
-
-def extract_features(data):
-    features = [ ]
-    for i in range(len(data)):
-        num_words = 0
-        current_feature = [ 0.0 for _ in range(200) ]
-        for word in data[i].split():
-            if word in word_to_vec:
-                current_feature += word_to_vec[word]/np.linalg.norm(word_to_vec[word])
-                num_words += 1
-
-        if num_words > 0:
-            current_feature /= num_words
-
-        features.append(current_feature)
-
-    return np.array(features)
-
-train_x = extract_features(train_x)
-dev_x = extract_features(dev_x)
-test_x = extract_features(test_x)
-
-train_dataset = torch.utils.data.TensorDataset(torch.FloatTensor(train_x), torch.LongTensor(train_y))
-dev_dataset = torch.utils.data.TensorDataset(torch.FloatTensor(dev_x), torch.LongTensor(dev_y))
-test_dataset = torch.utils.data.TensorDataset(torch.FloatTensor(test_x), torch.LongTensor(test_y))
-train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size)
-dev_loader = torch.utils.data.DataLoader(dev_dataset)
-test_loader = torch.utils.data.DataLoader(test_dataset)
+# train_loader = torch.utils.data.DataLoader(train_dataset)
+# dev_loader = torch.utils.data.DataLoader(dev_dataset)
+# test_loader = torch.utils.data.DataLoader(test_dataset)
 
 class DAN(nn.Module):
 
@@ -108,37 +77,52 @@ def evaluate(model, loader):
     return metrics.accuracy_score( y_pred=pred, y_true=actual)
 
 
-def train(model, loader, max_epoches, dev_loader, test_loader, verbose=False):
+def train(model, train_data, max_epoches, dev_data, dev_labels, verbose=False):
+    model.train()
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = torch.nn.MultiMarginLoss()
     best_dev = 0.0
     corresponding_test = 0.0
+
+    dev_titles, dev_bodies = dev_data
+    dev_title_embs = autograd.Variable(dev_titles)
+    dev_body_embs = autograd.Variable(dev_bodies)
+
     for epoch in range(max_epoches):
-        for data in train_loader:
-            data = Variable(data)
-            title_embeddings = autograd.Variable(data['titles']) # janice pass this in
-            body_embeddings = autograd.Variable(data['bodies'])
+        for batch in train_data:
+            titles, bodies = batch
+            title_embeddings = autograd.Variable(titles)
+            body_embeddings = autograd.Variable(bodies)
             title_output = model(title_embeddings)
             body_output = model(body_embeddings)
-            question_output = np.mean(title_output, body_output, axis=0)
+            question_embeddings = np.mean(title_output, body_output, axis=0)
+            # len(question_embeddings) = 440 = 22 * 20
             '''
             create matrix by iterating from 0 to 20, 0 to 21:
             x = 20x21 matrix, mapping q to cosine similarity of each of 21 questions for each set of 22 questions
             y = list of positive question indices, which is always 0 in that row
             '''
-
             X = np.zeros((20,21))
+            print len(question_embeddings)
             for i in range(20): # b rows, b = number of instances in a batch
                 for j in range(21):
                     X[i,j] = F.cosine_similarity(question_embeddings[i][0], question_embeddings[i][j])
 
             Y = np.array([0 for i in range(20)])
-            model.train()
+            
             optimizer.zero_grad()
 
-            loss = criterion(torch.cat(X), Variable(torch.FloatTensor(Y))
+            loss = criterion(torch.cat(X), Variable(torch.FloatTensor(Y)))
             loss.backward()
             optimizer.step()
+
+        dev_title_output = model(dev_title_embs)
+        dev_body_output = model(dev_body_embs)
+        dev_question_output = np.mean(dev_title_output, dev_body_output, axis=0)
+
+
+
+
 
         dev = evaluate(model, dev_loader)
         test = evaluate(model, test_loader)
@@ -148,6 +132,6 @@ def train(model, loader, max_epoches, dev_loader, test_loader, verbose=False):
 
     print (best_dev, corresponding_test)
 
-model = FFN(300, hidden_dim, 2)
+model = DAN(300, hidden_dim, 2)
 
-train(model, train_loader, 50, dev_loader, test_loader)
+train(model, train_batches, 50, dev_data, dev_labels)

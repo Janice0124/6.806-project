@@ -127,11 +127,11 @@ def build_batches(train_file, dev_file, test_file, word_embs_file, query_corpus_
     dev_data, dev_labels = create_dev_test_data(dev_id_samples, dev_labs, word_embeddings, raw_corpus)
     # dev_samples = create_samples(dev_id_samples, word_embeddings, raw_corpus)
 
-    test_corpus, test_id_samples, test_labels = read_dev_test(test_file)
+    test_corpus, test_id_samples, test_labs = read_dev_test(test_file)
     test_data, test_labels = create_dev_test_data(test_id_samples, test_labs, word_embeddings, raw_corpus)
     # test_samples = create_samples(test_id_samples, word_embeddings, raw_corpus)
 
-    return train_batches, dev_samples, dev_labels, test_samples, test_labels
+    return train_batches, dev_data, dev_labels, test_data, test_labels
 
 # dev.txt, test.txt
 # maps query IDs to list of similar IDs, list of 20 candidates

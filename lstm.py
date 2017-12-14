@@ -101,7 +101,11 @@ def train(model, train_data, max_epoches, dev_data, dev_labels, verbose=False):
             # body_embeddings = Variable(bodies)
             title_output = model(title_embeddings)
             body_output = model(body_embeddings)
-            question_embeddings = np.mean([title_output, body_output], axis=0)
+            print "title input", np.array(titles).shape
+            print "title embeddings", title_embeddings.data.shape
+            print "title output shape", title_output.data.shape
+            # question_embeddings = np.mean([title_output, body_output], axis=0)
+            question_embeddings = (title_output + body_output)/2
             # len(question_embeddings) = 440 = 22 * 20
             '''
             create matrix by iterating from 0 to 20, 0 to 21:
@@ -110,13 +114,13 @@ def train(model, train_data, max_epoches, dev_data, dev_labels, verbose=False):
             '''
             X = np.zeros((20,21))
             for i in range(20):
+                query_emb = question_embeddings[i * 20]
                 for j in range(22):
                     print i, j, i*20, i*20+j
-                    print question_embeddings[i*20].shape
-                    query_emb = torch.FloatTensor(question_embeddings[i * 20])
+                    # print type(question_embeddings[i*20])
                     if j != 0:
                         index = i * 20 + j
-                        X[i, j-1] = F.cosine_similarity(query_emb, torch.FloatTensor(question_embeddings[index]))
+                        X[i, j-1] = F.cosine_similarity(query_emb, question_embeddings[index])
 
 
             # for i in range(20): # b rows, b = number of instances in a batch

@@ -8,6 +8,7 @@ import torch.optim as optim
 import torch.utils.data
 import gzip
 import inout
+import dataset
 from tqdm import tqdm
 import argparse
 
@@ -184,7 +185,7 @@ def train(model, train_data, max_epoches, dev_data, dev_labels, args, verbose=Fa
 
     print (best_dev, corresponding_test)
 
-embeddings, word_to_indx = inout.getEmbeddingTensor()
+embeddings, word_to_indx = dataset.getEmbeddingTensor()
 model = DAN(embeddings, [])
 
 parser = argparse.ArgumentParser(description='Project')

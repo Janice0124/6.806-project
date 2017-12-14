@@ -8,6 +8,8 @@ import torch.optim as optim
 import torch.utils.data
 import gzip
 import inout
+from tqdm import tqdm
+import argparse
 
 train_file = "../data/askubuntu-master/train_random.txt"
 dev_file = "../data/askubuntu-master/dev.txt"
@@ -47,22 +49,28 @@ class DAN(nn.Module):
     def __init__(self, embeddings, args):
         super(DAN, self).__init__()
         self.args = args
-        # vocab_size, embedding_dim = embeddings.shape
+        vocab_size, embed_dim = embeddings.shape
         # self.embeddings = embeddings
         # embedding_dim = 440
         # self.W_hidden = nn.Linear(embedding_dim, embedding_dim)
         # self.W_out = nn.Linear(embedding_dim, 100)
-        self.seq = nn.Sequential(
-                nn.Linear(200, 100),
-                nn.Tanh())
+        print len(embeddings)
+        self.embedding_layer = nn.Embedding(vocab_size, embed_dim)
+        self.embedding_layer.weight.data = torch.from_numpy(embeddings)
+        self.embedding_layer.requires_grad = False
+        self.W_hidden = nn.Linear(embed_dim, 200)
+        self.W_out = nn.Linear(200, 100)
+        # self.seq = nn.Sequential(
+        #         nn.Linear(200, 100),
+        #         nn.Tanh())
 
-    def forward(self, x):
-        # all_embeddings = self.embeddings
-        # avg_embeddings = torch.mean(all_embeddings, dim=1)
-        # hidden = nn.Tanh(self.W_hidden(avg_embeddings))
-        # return self.W_out(hidden)
-        x = self.seq(x)
-        return x
+    def forward(self, x_indx):
+        all_x = self.embedding_layer(x_indx)
+        avg_x = torch.mean(all_x, dim=1)
+        hidden = nn.Tanh(self.W_hidden(avg_x))
+        # return self.seq(hidden)
+        out = self.W_out(hidden)
+        return out
 
 
 def evaluate(model, loader):
@@ -79,8 +87,10 @@ def evaluate(model, loader):
     return metrics.accuracy_score( y_pred=pred, y_true=actual)
 
 
-def train(model, train_data, max_epoches, dev_data, dev_labels, verbose=False):
-    model.train()
+def train(model, train_data, max_epoches, dev_data, dev_labels, args, verbose=False):
+    if args.cuda:
+        model = model.cuda()
+    # model.train()
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = torch.nn.MultiMarginLoss()
     best_dev = 0.0
@@ -93,37 +103,36 @@ def train(model, train_data, max_epoches, dev_data, dev_labels, verbose=False):
     # dev_body_embs = Variable(dev_bodies)
 
     for epoch in range(max_epoches):
-        for batch in train_data:
-            titles, bodies = batch
-            title_embeddings = Variable(torch.FloatTensor(titles))
-            # title_embeddings = Variable(titles)
-            body_embeddings = Variable(torch.FloatTensor(bodies))
-            # body_embeddings = Variable(bodies)
-            title_output = model(title_embeddings)
-            body_output = model(body_embeddings)
-            question_embeddings = np.mean([title_output, body_output], axis=0)
-            # len(question_embeddings) = 440 = 22 * 20
-            '''
-            create matrix by iterating from 0 to 20, 0 to 21:
-            x = 20x21 matrix, mapping q to cosine similarity of each of 21 questions for each set of 22 questions
-            y = list of positive question indices, which is always 0 in that row
-            '''
-            X = np.zeros((20,21))
+        data_loader = torch.utils.data.DataLoader(train_data, batch_size=20, shuffle=True, drop_last=True)
+        model.train()
+        for batch in tqdm(data_loader):
+            sample_title_tensors, sample_body_tensors = torch.autograd.Variable(batch['sample_title'], torch.autograd.Variable(batch['sample_body']))
+            candidate_title_tensors, candidate_body_tensors = torch.autograd.Variable(batch['candidate_title'], torch.autograd.Variable(batch['candidate_body']))
+            # run through model titles first then bodies
+            title_encodings = model(sample_title_tensors+candidate_title_tensors)
+            body_encodings = model(sample_body_tensors+candidate_body_tensors)
+            question_encodings = (title_encodings+body_encodings)/2.
+
+            # if args.cuda:
+            #     x, y = x.cuda(), y.cuda()
+
+            X = []
             for i in range(20):
                 for j in range(22):
-                    print i, j, i*20, i*20+j
-                    print question_embeddings[i*20].shape
-                    query_emb = torch.FloatTensor(question_embeddings[i * 20])
+                    print i, j, i*20, i*20+j, "i, j, i*20, i*20+j"
+                    print question_embeddings[i*20].shape, "shape"
+                    query_emb = torch.FloatTensor((question_embeddings[i * 20]))
                     if j != 0:
                         index = i * 20 + j
-                        X[i, j-1] = F.cosine_similarity(query_emb, torch.FloatTensor(question_embeddings[index]))
-
+                        # prob want to reshape to 1 row
+                        X[i, j-1] = F.cosine_similarity(query_emb, torch.FloatTensor(question_embeddings[index]), dim=1)
 
             # for i in range(20): # b rows, b = number of instances in a batch
-            #     for j in range(21):
-            #         X[i,j] = F.cosine_similarity(torch.FloatTensor(question_embeddings[i][0]), torch.FloatTensor(question_embeddings[i][j]))
+            #         for j in range(21):
+            #             X[i,j] = F.cosine_similarity(torch.FloatTensor(question_encodings[i][0]), torch.FloatTensor(question_encodings[i][j]))
 
             Y = np.array([0 for i in range(20)])
+            X = torch.cat(X, 0), Y
             
             optimizer.zero_grad()
 
@@ -132,22 +141,54 @@ def train(model, train_data, max_epoches, dev_data, dev_labels, verbose=False):
             loss.backward()
             optimizer.step()
 
+        losses.append(loss.cpu().data[0])
+
+    # Calculate epoch level scores
+    avg_loss = np.mean(losses)
+    return avg_loss
+
+     # dev = evaluate(model, dev_loader)
+     # test = evaluate(model, test_loader)
+     # if dev > best_dev:
+     #    best_dev = dev
+     #    corresponding_test = test
+
+
+
+        # for batch in train_data:
+        #     titles, bodies = batch
+        #     # title_embeddings = Variable(torch.FloatTensor(titles))
+        #     title_embeddings = (torch.FloatTensor(titles))
+        #     # title_embeddings = Variable(titles)
+        #     # body_embeddings = Variable(torch.FloatTensor(bodies))
+        #     body_embeddings = (torch.FloatTensor(bodies))
+        #     # body_embeddings = Variable(bodies)
+        #     title_output = model(title_embeddings)
+        #     body_output = model(body_embeddings)
+        #     question_embeddings = np.mean([title_output, body_output], axis=0)
+        #     # len(question_embeddings) = 440 = 22 * 20
+        #     '''
+        #     create matrix by iterating from 0 to 20, 0 to 21:
+        #     x = 20x21 matrix, mapping q to cosine similarity of each of 21 questions for each set of 22 questions
+        #     y = list of positive question indices, which is always 0 in that row
+        #     '''
+        #     
+
+
+            
+
         # dev_title_output = model(dev_title_embs)
         # dev_body_output = model(dev_body_embs)
         # dev_question_output = np.mean(dev_title_output, dev_body_output, axis=0)
 
 
-
-
-
-        dev = evaluate(model, dev_loader)
-        test = evaluate(model, test_loader)
-        if dev > best_dev:
-            best_dev = dev
-            corresponding_test = test
-
     print (best_dev, corresponding_test)
 
-model = DAN(train_batches, [])
+embeddings, word_to_indx = inout.getEmbeddingTensor()
+model = DAN(embeddings, [])
 
-train(model, train_batches, 50, dev_data, dev_labels)
+parser = argparse.ArgumentParser(description='Project')
+parser.add_argument('--cuda', action='store_true', default=False, help='enable the gpu')
+args = parser.parse_args()
+
+train(model, train_batches, 50, dev_data, dev_labels, args)

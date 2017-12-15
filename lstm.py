@@ -35,11 +35,11 @@ lr = 1e-3
 train_batches, dev_data, dev_labels, test_data, test_labels = inout.build_batches(train_file, dev_file, test_file, word_embs_file, query_corpus_file, 20)
 
 # train_dataset = torch.utils.data.TensorDataset(torch.FloatTensor(train_x), torch.LongTensor(train_y))
-# dev_dataset = torch.utils.data.TensorDataset(torch.FloatTensor(dev_x), torch.LongTensor(dev_y))
+dev_dataset = torch.utils.data.TensorDataset(torch.FloatTensor(dev_x), torch.LongTensor(dev_y))
 # test_dataset = torch.utils.data.TensorDataset(torch.FloatTensor(test_x), torch.LongTensor(test_y))
 
 # train_loader = torch.utils.data.DataLoader(train_dataset)
-# dev_loader = torch.utils.data.DataLoader(dev_dataset)
+dev_loader = torch.utils.data.DataLoader(dev_dataset)
 # test_loader = torch.utils.data.DataLoader(test_dataset)
 
 class DAN(nn.Module):
@@ -105,23 +105,30 @@ def train(model, train_data, max_epoches, dev_data, dev_labels, verbose=False):
             print "title embeddings", title_embeddings.data.shape
             print "title output shape", title_output.data.shape
             # question_embeddings = np.mean([title_output, body_output], axis=0)
-            question_embeddings = (title_output + body_output)/2
+            question_embeddings = (title_output + body_output)/2.
             # len(question_embeddings) = 440 = 22 * 20
             '''
             create matrix by iterating from 0 to 20, 0 to 21:
             x = 20x21 matrix, mapping q to cosine similarity of each of 21 questions for each set of 22 questions
             y = list of positive question indices, which is always 0 in that row
             '''
-            X = np.zeros((20,21))
+            X = []
             for i in range(20):
                 query_emb = question_embeddings[i * 20]
                 for j in range(22):
-                    print i, j, i*20, i*20+j
+                    # print i, j, i*20, i*20+j
                     # print type(question_embeddings[i*20])
                     if j != 0:
                         index = i * 20 + j
-                        X[i, j-1] = F.cosine_similarity(query_emb, question_embeddings[index])
-
+                        # print query_emb.size()
+                        # print question_embeddings[index].size()
+                        if query_emb.size()!=(100L,1L):
+                            query_emb=torch.unsqueeze(query_emb, 1) 
+                        # print query_emb.size()
+                        question_embeddings_index = torch.unsqueeze(question_embeddings[index], 1) 
+                        # print question_embeddings_index.size()
+                        # X[i, j-1] = F.cosine_similarity(query_emb, question_embeddings[index], dim=1)
+                        X.append(F.cosine_similarity(torch.t(query_emb), torch.t(question_embeddings_index), dim=1))
 
             # for i in range(20): # b rows, b = number of instances in a batch
             #     for j in range(21):
@@ -131,8 +138,8 @@ def train(model, train_data, max_epoches, dev_data, dev_labels, verbose=False):
             
             optimizer.zero_grad()
 
-            loss = criterion(torch.cat(X), Variable(torch.FloatTensor(Y)))
-            print loss
+            loss = criterion(torch.cat(X), Variable(torch.LongTensor(Y)))
+            print "loss", loss
             loss.backward()
             optimizer.step()
 

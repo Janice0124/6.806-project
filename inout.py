@@ -126,7 +126,7 @@ def build_batches(train_file, dev_file, test_file, word_embs_file, query_corpus_
 
     train_ids = read_train_set(train_file)
     id_samples = create_id_samples(train_ids)
-    train_samples = create_samples(id_samples[:len(id_samples)/2], word_embeddings, raw_corpus, 200)
+    train_samples = create_samples(id_samples, word_embeddings, raw_corpus, 200)
     train_batches = create_train_batches(batch_size, train_samples)
 
     dev_corpus, dev_id_samples, dev_labs = read_dev_test(dev_file)
@@ -216,6 +216,38 @@ def read_eval_Android(pos_file, neg_file, word_embs, android_corpus):
     print "Created Android negatives"
     return [titles, bodies], labels
 
+def read_eval_Android2(pos_file, neg_file, word_embs, android_corpus):
+    id_to_negs = {}
+    with open(neg_file) as neg:
+        for line in neg:
+            qid, rid = line.strip().split()
+            if not id_to_negs.haskey(qid):
+                id_to_negs[qid] = []
+            id_to_negs[qid].append(rid)
+
+    titles = []
+    bodies = []
+    labels = []
+    with open(pos_file) as pos:
+        for line in pos:
+            qid, rid = line.strip().split()
+            q_title, q_body = android_corpus[qid]
+            r_title, r_body = android_corpus[rid]
+
+            len_neg = len(id_to_negs[qid])
+            if len_neg >= 20:
+                indices = np.random.choice(len_neg, 20, replace=False)
+                sample = [qid, rid] + [id_to_negs[qid][index] for index in indices]
+            else:
+                sample = [qid, rid] + id_to_negs[qid]
+
+            for query in sample:
+                title, body = android_corpus[query]
+                titles.append(line2vec(title, word_embs, 300))
+                bodies.append(line2vec(body, word_embs, 300))
+                labels.extend([1, 1] + [0] * 20)
+    return [titles, bodies], labels
+
 # ============================================================================
 # Part 2 - Direct Transfer
 # ============================================================================
@@ -230,11 +262,16 @@ def read_eval_Android(pos_file, neg_file, word_embs, android_corpus):
 
 def build_direct_transfer_data(ubuntu_train_file, android_test_pos_file, android_test_neg_file, word_embs_file, ubuntu_corpus_file, android_corpus_file, batch_size):
     word_embs = read_word_embeddings(word_embs_file)
+    print "Read word embeddings"
 
     raw_corpus = read_corpus(ubuntu_corpus_file)
+    print "Read ubuntu corpus"
+
     train_ids = read_train_set(ubuntu_train_file)
     id_samples = create_id_samples(train_ids)
-    train_samples = create_samples(id_samples, word_embs, raw_corpus, 300)
+    print "Created Train samples"
+
+    train_samples = create_samples(id_samples[:5000], word_embs, raw_corpus, 300)
     train_batches = create_train_batches(batch_size, train_samples)
     print "Created Train Batches"
 

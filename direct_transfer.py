@@ -7,7 +7,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 from torch.autograd import Variable
-import lstm as models
+
+from sklearn import metrics
+import torch.optim as optim
+import torch.utils.data
+from meter import AUCMeter
+from evaluation import Evaluation
+from tqdm import tqdm
+
 
 ubuntu_train_file = "../data/askubuntu-master/train_random.txt"
 ubuntu_corpus_file = "../data/askubuntu-master/text_tokenized.txt.gz"
@@ -17,8 +24,27 @@ glove_embeddings = "../data/android-master/glove.pruned.txt.gz"
 android_test_pos = "../data/Android-master/test.pos.txt"
 android_test_neg = "../data/Android-master/test.neg.txt"
 
-train_batches, test_data, test_labels = utils.build_direct_transfer_data(ubuntu_train_file, android_test_pos, android_test_neg, glove_embeddings, ubuntu_corpus_file, android_corpus_file, 20)
+train_data, test_data, test_labels = utils.build_direct_transfer_data(ubuntu_train_file, android_test_pos, android_test_neg, glove_embeddings, ubuntu_corpus_file, android_corpus_file, 20)
 print "Created train and test data"
+
+class DAN(nn.Module):
+
+    def __init__(self, embeddings, args):
+        super(DAN, self).__init__()
+        self.input_dim = args[0]
+        # self.embedding_layer = nn.Embedding(len(embeddings), len(embeddings[0]))
+        self.seq = nn.Sequential(
+                nn.Linear(self.input_dim, 200),
+                nn.ReLU(),
+                nn.Dropout(p=0.5),
+                nn.Linear(200,100), # try dropout layer w/ varying probabilities, weight decay
+                nn.Tanh())
+
+    def forward(self, x):
+        # x = self.embedding_layer(Variable(torch.FloatTensor(x)))
+        # x = torch.mean(x, dim=1)
+        x = self.seq(x)
+        return x
 
 def train(model, train_data, max_epoches, verbose=False):
     model.train()
@@ -32,9 +58,13 @@ def train(model, train_data, max_epoches, verbose=False):
     criterion_da = nn.BCELoss()
     best_dev = 0.0
     corresponding_test = 0.0
+    loss_count = 0
+    loss_range = 0.1
+    prev_loss = 0
 
     for epoch in range(max_epoches):
-        print "epoch", epoch
+        print "==============="
+        print "EPOCH ", epoch
         batch_num = 0
         for batch in train_data:
             batch_num+=1
@@ -64,21 +94,46 @@ def train(model, train_data, max_epoches, verbose=False):
             loss = criterion(torch.cat(X), Variable(torch.LongTensor(Y)))
             loss.backward()
             optimizer.step()
-            print "Loss", loss
+        print "Loss", loss
+        if (abs(loss[data][0] - prev_loss <= loss_range)):
+        	loss_count += 1
+        else:
+        	loss_count = 0
+        prev_loss = loss[data][0]
+        if loss_count >= 5:
+        	break
+        print "=============="
 
         # evaluate(dev_data, dev_labels, model) # evaluate on android dataset
 
 def evaluate(model, test_data, test_labels):
+	m = AUCMeter()
+	cos_sims = []
+	labels = []
 	titles, bodies = test_data
+	print "Getting test query embeddings"
 	title_output = model(Variable(torch.FloatTensor(titles)))
 	body_output = model(Variable(torch.FloatTensor(bodies)))
-	print "Getting test query embeddings"
 	question_embeddings = (title_output + body_output)/2
-	print question_embeddings[0]
+	print "Getting cosine similarities"
+	for i in range(len(question_embeddings)/2):
+		q_ind = 2 * i
+		r_ind = 2 * i + 1
+		q_emb = question_embeddings[q_ind]
+		r_emb = question_embeddings[r_ind]
+		cos_sim = F.cosine_similarity(q_emb, r_emb, dim=0, eps=1e-6)
+		cos_sims.append(cos_sim.data[0])
+		labels.append(test_labels[q_ind])
+		if i % 3000 == 0 or i == len(question_embeddings)/2:
+			print "index ", q_ind
+	m.add(torch.FloatTensor(cos_sims), torch.IntTensor(labels))
+	print m.value(max_fpr=0.05)
+
+
 
 torch.manual_seed(1)
-model = models.DAN(train_batches, [300])
-train(model, train_data, 50)
+model = DAN(train_data, [300])
+train(model, train_data, 20)
 evaluate(model, test_data, test_labels)
 
 

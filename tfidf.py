@@ -45,7 +45,7 @@ with open(android_test_pos) as test_file:
 		cos_sims.append(cos_sim.data[0])
 		labels.append(1)
 print "Adding positive output and target to meter"
-print cos_sims
+# print cos_sims
 m.add(torch.FloatTensor(cos_sims), torch.IntTensor(labels))
 
 with open(android_test_neg) as test_file:
@@ -63,9 +63,9 @@ with open(android_test_neg) as test_file:
 		cos_sims.append(cos_sim.data[0])
 		labels.append(0)
 		i += 1
-		if i % 1000 == 0:
+		if i % 2000 == 0:
 			print "index: ", i
-			print cos_sims
+			# print cos_sims
 			m.add(torch.FloatTensor(cos_sims), torch.IntTensor(labels))
 			cos_sims = []
 			labels = []

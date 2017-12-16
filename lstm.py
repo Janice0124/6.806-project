@@ -119,6 +119,7 @@ class CNN(nn.Module):
     #     out = torch.mean(out, 2)
     #     # print("size of out", out.size())
     #     return out
+    pass
 
 class DomainClassifier(nn.Module):
     def __init__(self, embeddings, args):

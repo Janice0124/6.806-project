@@ -19,6 +19,13 @@ test_file = "../data/askubuntu-master/test.txt"
 word_embs_file = "../data/askubuntu-master/vector/vectors_pruned.200.txt"
 query_corpus_file = "../data/askubuntu-master/text_tokenized.txt.gz"
 
+android_neg_dev = "../data/android-master/dev.neg.txt"
+android_pos_dev = "../data/android-master/dev.pos.txt"
+android_neg_test = "../data/android-master/test.neg.txt"
+android_pos_test = "../data/android-master/test.pos.txt"
+android_corpus = "../data/android-master/corpus-lower.tsv"
+glove_embeddings = "../data/android-master/glove.pruned.txt"
+
 torch.manual_seed(1)
 batch_size = 20
 hidden_dim = 300
@@ -34,7 +41,7 @@ hidden_dim = 300
 # test_x = extract_features(test_x)
 
 train_batches, dev_data, dev_labels, test_data, test_labels = inout.build_batches(train_file, dev_file, test_file, word_embs_file, query_corpus_file, 20)
-
+classifier_batches = inout.build_classifier_batches(query_corpus_file, android_corpus, glove_embeddings, 40)
 # train_dataset = torch.utils.data.TensorDataset(torch.FloatTensor(train_x), torch.LongTensor(train_y))
 # dev_dataset = torch.utils.data.TensorDataset(torch.FloatTensor(dev_x), torch.LongTensor(dev_y))
 # test_dataset = torch.utils.data.TensorDataset(torch.FloatTensor(test_x), torch.LongTensor(test_y))
@@ -47,16 +54,18 @@ class DAN(nn.Module):
 
     def __init__(self, embeddings, args):
         super(DAN, self).__init__()
-        self.args = args
+        self.input_dim = args[0]
+        # self.embedding_layer = nn.Embedding(len(embeddings), len(embeddings[0]))
         self.seq = nn.Sequential(
-                # nn.Linear(200, 200),
-                # nn.ReLU(),
-                nn.Dropout(p=0.1),
+                nn.Linear(self.input_dim, 200),
+                nn.ReLU(),
+                nn.Dropout(p=0.5),
                 nn.Linear(200,100), # try dropout layer w/ varying probabilities, weight decay
                 nn.Tanh())
 
     def forward(self, x):
-        x = torch.mean(x,dim=0)
+        # x = self.embedding_layer(Variable(torch.FloatTensor(x)))
+        # x = torch.mean(x, dim=1)
         x = self.seq(x)
         return x
 
@@ -75,7 +84,6 @@ class LSTM(nn.Module):
 
 
     def forward(self, x):
-        print x.size()
         batch_size = len(x)
         h0, c0 = self.init_hidden(batch_size)
         output, (h_n, c_n) = self.lstm(x, (h0, c0))
@@ -96,30 +104,34 @@ class CNN(nn.Module):
     #     out = torch.mean(out, 2)
     #     # print("size of out", out.size())
     #     return out
-
+    
 class DomainClassifier(nn.Module):
     def __init__(self, embeddings, args):
-        super(DomainClassifier).__init__()
+        super(DomainClassifier, self).__init__()
         self.args = args
         self.seq = nn.Sequential(
-                nn.Linear(200, 200),
+                nn.Linear(100, 100),
                 nn.ReLU(),
-                nn.Linear(200,1), # try dropout layer w/ varying probabilities, weight decay
-                nn.Softmax())
+                nn.Linear(100,1))
+        self.softmax = nn.Softmax()
 
     def forward(self, x):
         x = self.seq(x)
+        # print x.size()
+        x = torch.squeeze(x)
+        x = self.softmax(x)
         return x
 
-def train(model, train_data, max_epoches, dev_data, dev_labels, domain_adaption=False, domain_adaptation_model=None, domain_adapation_labels=None, verbose=False):
+def train(model, da_dan_model, train_data, max_epoches, dev_data, dev_labels, domain_adaption=False, domain_adapation_batches=None, verbose=False):
     model.train()
-    weight_decay = 1e-6# 1e-5
-    lr = 1e-4# 1e-3
+    weight_decay = 1e-5# 1e-5
+    lr = 1e-3# 1e-3
     dc_lr = 1e-3
     l = 1e-3 #lambda
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     domain_classifier_optimizer = optim.Adam(model.parameters(), lr=lr)
     criterion = torch.nn.MultiMarginLoss(margin=0.2)
+    criterion_da = nn.BCELoss()
     best_dev = 0.0
     corresponding_test = 0.0
 
@@ -186,14 +198,26 @@ def train(model, train_data, max_epoches, dev_data, dev_labels, domain_adaption=
             '''domain adaptation'''
 
             if domain_adaption:
-                titles, bodies = batch
+                bodies = domain_adapation_batches[0]['bodies']
+                titles = domain_adapation_batches[1]['titles']
+                labels = domain_adapation_batches[0]['labels'] # should be same for bodies and titles
+                labels = np.asarray(labels)
+
+                da_train_batches = []
+                for i in range(len(bodies)):
+                    da_train_batches.append([bodies[i], titles[i]])
+                da_model = DomainClassifier(da_train_batches, [])
+
                 title_embeddings = Variable(torch.FloatTensor(titles))
                 body_embeddings = Variable(torch.FloatTensor(bodies))
-                title_output = model(title_embeddings)
-                body_output = model(body_embeddings)
+                title_output = da_dan_model(title_embeddings)
+                body_output = da_dan_model(body_embeddings)
                 question_embeddings = (title_output + body_output)/2.
-                question_labels = domain_adaptation_model(question_embeddings)
-                da_loss = nn.BCELoss(question_labels, domain_adapation_labels)
+                question_labels = da_model(question_embeddings)
+                # print type(question_labels), type(labels)
+                da_loss = criterion_da((question_labels), Variable(torch.FloatTensor(labels)))
+                # print da_loss
+                # print l*da_loss, loss
                 total_loss = loss - l*da_loss
                 domain_classifier_optimizer.zero_grad()
                 total_loss.backward()
@@ -205,7 +229,7 @@ def train(model, train_data, max_epoches, dev_data, dev_labels, domain_adaption=
                 optimizer.step()
 
             
-        evaluate(dev_data, dev_labels, model)
+        evaluate(dev_data, dev_labels, model) # evaluate on android dataset
 
         # dev_title_output = model(dev_title_embs)
         # dev_body_output = model(dev_body_embs)
@@ -240,7 +264,7 @@ def compute_scores(data, labels, model):
     curr_labels = []
     titles = data[0]
     bodies = data[1]
-    print len(titles), len(bodies), len(labels)
+    # print len(titles), len(bodies), len(labels)
     # print titles[0], titles[1], " space", bodies[0], bodies[1], 'space', labels[0], labels[1]
     for i in range(len(labels)):
         curr_labels.append(labels[i])
@@ -250,7 +274,7 @@ def compute_scores(data, labels, model):
             ranks=ranks.argsort()
             # print ranks
             # print np.asarray(curr_labels)
-            ranked_labels = np.asarray(curr_labels)[ranks]
+            ranked_labels = np.asarray(curr_labels)[-ranks]
             # print ranked_labels
             res.append(ranked_labels)
             scores = []
@@ -268,16 +292,18 @@ def compute_scores(data, labels, model):
         question_embeddings_query = torch.unsqueeze(question_embeddings[0], 1) 
         question_embeddings_candidates = torch.unsqueeze(question_embeddings[1:], 1) 
         # print question_embeddings_query.size(), question_embeddings_candidates.size()
-        scores.append(F.cosine_similarity(torch.t(question_embeddings_query), torch.t(question_embeddings_candidates)).data.cpu().numpy()[0]*-1)
+        scores.append(F.cosine_similarity(torch.t(question_embeddings_query), torch.t(question_embeddings_candidates)).data.cpu().numpy()[0])
         
     return res
 
 
 
-model = DAN(train_batches, [])
+# model = DAN(train_batches, [])
 # model = LSTM(train_batches, [])
 
-train(model, train_batches, 50, dev_data, dev_labels)
+# train(model, train_batches, 50, dev_data, dev_labels)
+
+train(DAN(train_batches, [200]), DAN(train_batches, [300]), train_batches, 50, dev_data, dev_labels, domain_adaption=True, domain_adapation_batches=classifier_batches, verbose=False)
 #CHANGE NUM EPOCHS
 
 

@@ -45,15 +45,6 @@ def line2vec(sentence, word_embeddings):
             feature += word_embeddings[word]
     return feature / float(num_words) if num_words != 0 else feature
 
-def line2vecglove(sentence, word_embeddings):
-    feature = np.array([0.0 for i in range(300)])
-    num_words = 0
-    for word in sentence:
-        if word in word_embeddings:
-            num_words += 1
-            feature += word_embeddings[word]
-    return feature / float(num_words) if num_words != 0 else feature
-
 # train_random.txt
 # maps query IDs to list of similar IDs and list of negative IDs
 def read_train_set(path):
@@ -194,15 +185,79 @@ def create_dev_test_data(samples, labs, word_embs, raw_corpus):
     return ([title_data, body_data], labels)
 
 # ============================================================================
+# Part 2
+# ============================================================================
+
+def line2vec_direct_transfer(sentence, word_embeddings):
+	feature = np.array([0.0 for i in range(300)])
+	num_words = 0
+	for word in sentence:
+		if word in word_embeddings:
+			num_words += 1
+			feature += word_embeddings[word]
+	return feature / float(num_words) if num_words != 0 else feature
+
+def read_eval_Android(pos_file, neg_file, word_embs, android_corpus):
+	titles = []
+	bodies = []
+	labels = []
+	with open(pos_file) as pos:
+		for line in pos:
+			qid, rid = line.strip().split()
+			q_title, q_body = android_corpus[qid]
+			r_title, r_body = android_corpus[rid]
+    		titles.append(line2vec_direct_transfer(q_title, word_embs))
+    		bodies.append(line2vec_direct_transfer(q_body, word_embs))
+    		titles.append(line2vec_direct_transfer(r_title, word_embs))
+    		bodies.append(line2vec_direct_transfer(r_body, word_embs))
+    		labels.extend([1,1])
+    with open(android_test_pos_file) as neg:
+    	for line in neg:
+    		qid, rid = line.strip().split()
+    		q_title, q_body = android_corpus[qid]
+    		r_title, r_body = android_corpus[rid]
+    		titles.append(line2vec_direct_transfer(q_title, word_embs))
+    		bodies.append(line2vec_direct_transfer(q_body, word_embs))
+    		titles.append(line2vec_direct_transfer(r_title, word_embs))
+    		bodies.append(line2vec_direct_transfer(r_body, word_embs))
+    		labels.append([0,0])
+    return [titles, bodies], labels
+
+# ============================================================================
 # Part 2 - Direct Transfer
 # ============================================================================
 
+def build_direct_transfer_data(ubuntu_train_file, android_test_pos_file, android_test_neg_file, word_embs_file, ubuntu_corpus_file, android_corpus_file, batch_size):
+	word_embs = read_word_embeddings(word_embs_file)
 
+	raw_corpus = read_corpus(ubuntu_corpus_file)
+	train_ids = read_train_set(train_file)
+    id_samples = create_id_samples(train_ids)
+    train_samples = create_samples(id_samples, word_embeddings, raw_corpus)
+    train_batches = create_train_batches(batch_size, train_samples)
 
+    android_corpus = read_corpus(android_corpus_file)
+
+    test_data, test_labels = read_eval_Android(android_test_pos_file, android_test_neg_file, word_embs_file, android_corpus)
+
+    return train_batches, test_data, test_labels
 
 # ============================================================================
 # Part 2 - Adversarial Domain Adaptation
 # ============================================================================
+
+# def build_classifier_batches(ubuntu_corpus_file, android_corpus_file, word_embs_file, batch_size):
+# 	word_embeddings = read_word_embeddings(word_embs_file)
+# 	ubuntu_corpus = read_corpus(ubuntu_corpus_file)
+# 	android_corpus = read_corpus(android_corpus_file)
+
+# 	ubuntu_keys = ubuntu_corpus.keys()
+# 	android_keys = android_corpus.keys()
+
+# 	min_size = min(len(ubuntu_corpus), len(android_corpus))
+# 	for i in range(int(min_size / batch_size)):
+# 		for j in range(batch_size):
+# 			index = i * batch_size + j
 
 def build_classifier_batches(ubuntu_corpus_file, android_corpus_file, word_embs_file, batch_size):
     '''
@@ -257,34 +312,6 @@ def build_classifier_batches(ubuntu_corpus_file, android_corpus_file, word_embs_
                 break
     return (body_batches, title_batches)
 
-
-def read_dev_test_android(neg_dev, pos_dev, neg_test, pos_test):
-    samples = []
-    labels = []
-    corpus = {}
-    i = 0
-    with open(path) as txt_file:
-        for line in txt_file:
-            # if i > 500:
-            #     break
-            parts = line.split("\t")
-            qid, similar, candidates = parts[:3]
-            similar = similar.split()
-            candidates = candidates.split()
-            corpus[qid] = (similar, candidates)
-
-            samples.append([qid] + candidates)
-
-            s = set(similar)
-            sample_labels = [1]
-            for c in candidates:
-                if c in s:
-                    sample_labels.append(1)
-                else:
-                    sample_labels.append(0)
-            labels.append(sample_labels)
-            i+=1
-    return (corpus, samples, labels)
 
 android_neg_dev = "../data/android-master/dev.neg.txt"
 android_pos_dev = "../data/android-master/dev.pos.txt"

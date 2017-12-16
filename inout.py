@@ -188,41 +188,31 @@ def create_dev_test_data(samples, labs, word_embs, raw_corpus):
 # Part 2
 # ============================================================================
 
-def line2vec_direct_transfer(sentence, word_embeddings):
-	feature = np.array([0.0 for i in range(300)])
-	num_words = 0
-	for word in sentence:
-		if word in word_embeddings:
-			num_words += 1
-			feature += word_embeddings[word]
-	return feature / float(num_words) if num_words != 0 else feature
-
 def read_eval_Android(pos_file, neg_file, word_embs, android_corpus):
-	titles = []
-	bodies = []
-	labels = []
-	with open(pos_file) as pos:
-		for line in pos:
-			qid, rid = line.strip().split()
-			q_title, q_body = android_corpus[qid]
-			r_title, r_body = android_corpus[rid]
-			titles.append(line2vec_direct_transfer(q_title, word_embs))
-			bodies.append(line2vec_direct_transfer(q_body, word_embs))
-			titles.append(line2vec_direct_transfer(r_title, word_embs))
-			bodies.append(line2vec_direct_transfer(r_body, word_embs))
-			labels.extend([1,1])
-
-	with open(android_test_pos_file) as neg:
-		for line in neg:
-			qid, rid = line.strip().split()
-			q_title, q_body = android_corpus[qid]
-			r_title, r_body = android_corpus[rid]
-			titles.append(line2vec_direct_transfer(q_title, word_embs))
-			bodies.append(line2vec_direct_transfer(q_body, word_embs))
-			titles.append(line2vec_direct_transfer(r_title, word_embs))
-			bodies.append(line2vec_direct_transfer(r_body, word_embs))
-			labels.append([0,0])
-	return [titles, bodies], labels
+    titles = []
+    bodies = []
+    labels = []
+    with open(pos_file) as pos:
+        for line in pos:
+            qid, rid = line.strip().split()
+            q_title, q_body = android_corpus[qid]
+            r_title, r_body = android_corpus[rid]
+            titles.append(line2vec(q_title, word_embs, 300))
+            bodies.append(line2vec(q_body, word_embs, 300))
+            titles.append(line2vec(r_title, word_embs, 300))
+            bodies.append(line2vec(r_body, word_embs, 300))
+            labels.extend([1,1])
+    with open(neg_file) as neg:
+        for line in neg:
+            qid, rid = line.strip().split()
+            q_title, q_body = android_corpus[qid]
+            r_title, r_body = android_corpus[rid]
+            titles.append(line2vec(q_title, word_embs, 300))
+            bodies.append(line2vec(q_body, word_embs, 300))
+            titles.append(line2vec(r_title, word_embs, 300))
+            bodies.append(line2vec(r_body, word_embs, 300))
+            labels.extend([0,0])
+    return [titles, bodies], labels
 
 # ============================================================================
 # Part 2 - Direct Transfer
@@ -237,7 +227,7 @@ def read_eval_Android(pos_file, neg_file, word_embs, android_corpus):
 # 	return id_to_pos
 
 def build_direct_transfer_data(ubuntu_train_file, android_test_pos_file, android_test_neg_file, word_embs_file, ubuntu_corpus_file, android_corpus_file, batch_size):
-	word_embs = read_word_embeddings(word_embs_file)
+    word_embs = read_word_embeddings(word_embs_file)
 
 	raw_corpus = read_corpus(ubuntu_corpus_file)
 	train_ids = read_train_set(ubuntu_train_file)
@@ -330,4 +320,3 @@ android_corpus = "../data/android-master/corpus-lower.tsv"
 glove_embeddings = "../data/android-master/glove.pruned.txt"
 query_corpus_file = "../data/askubuntu-master/text_tokenized.txt.gz"
 # build_classifier_batches(query_corpus_file, android_corpus, glove_embeddings, 40)
-

@@ -220,7 +220,7 @@ def read_eval_Android(pos_file, neg_file, word_embs, android_corpus):
             bodies.append(line2vec_direct_transfer(q_body, word_embs))
             titles.append(line2vec_direct_transfer(r_title, word_embs))
             bodies.append(line2vec_direct_transfer(r_body, word_embs))
-            labels.append([0,0])
+            labels.extend([0,0])
     return [titles, bodies], labels
 
 # ============================================================================

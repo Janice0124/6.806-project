@@ -15,7 +15,7 @@ test_file = "../data/askubuntu-master/test.txt"
 word_embs_file = "../data/askubuntu-master/vector/vectors_pruned.200.txt"
 query_corpus_file = "../data/askubuntu-master/text_tokenized.txt.gz"
 
-android_corpus_file = "../data/Android-master/corpus-lower.tsv"
+android_corpus_file = "../data/Android-master/corpus-lower.tsv.gz"
 android_word_embs_file = "../data/Android-master/glove.pruned.txt.gz"
 android_dev_pos = "../data/Android-master/dev.pos.txt"
 android_dev_neg = "../data/Android-master/dev.neg.txt"

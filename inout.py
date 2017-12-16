@@ -116,6 +116,9 @@ def create_train_batches(batch_size, train_samples):
 		train_batches.append([title_batch, body_batch])
 	return train_batches
 
+# ============================================================================
+# Part 1
+# ============================================================================
 
 # end to end function - from files to batches
 def build_batches(train_file, dev_file, test_file, word_embs_file, query_corpus_file, batch_size):
@@ -181,5 +184,30 @@ def create_dev_test_data(samples, labs, word_embs, raw_corpus):
 		labels.extend(labs[i])
 
 	return ([title_data, body_data], labels)
+
+# ============================================================================
+# Part 2 - Direct Transfer
+# ============================================================================
+
+
+
+
+# ============================================================================
+# Part 2 - Adversarial Domain Adaptation
+# ============================================================================
+
+def build_classifier_batches(ubuntu_corpus_file, android_corpus_file, word_embs_file, batch_size):
+	word_embeddings = read_word_embeddings(word_embs_file)
+	ubuntu_corpus = read_corpus(ubuntu_corpus_file)
+	android_corpus = read_corpus(android_corpus_file)
+
+	ubuntu_keys = ubuntu_corpus.keys()
+	android_keys = android_corpus.keys()
+
+	min_size = min(len(ubuntu_corpus), len(android_corpus))
+	for i in range(int(min_size / batch_size)):
+		for j in range(batch_size):
+			index = i * batch_size + j
+
 
 

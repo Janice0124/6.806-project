@@ -36,8 +36,8 @@ def read_word_embeddings(path):
 
 # Turns a sentence into a feature vector by taking the average
 # of all the word embeddings -> outputs 200-dimension 1D array
-def line2vec(sentence, word_embeddings):
-    feature = np.array([0.0 for i in range(200)])
+def line2vec(sentence, word_embeddings, word_embs_dim):
+    feature = np.array([0.0 for i in range(word_embs_dim)])
     num_words = 0
     for word in sentence:
         if word in word_embeddings:
@@ -82,7 +82,7 @@ def create_id_samples(id_dict):
 
 # Creates train samples using actual feature vectors 
 # (converts from ID to question to vector)
-def create_samples(id_samples, word_embs, raw_corpus):
+def create_samples(id_samples, word_embs, raw_corpus, word_embs_dim):
     '''
     for each sample, output tuple of 2 lists: title, body
     [title vector of q: title vector of p, title vector of n's]
@@ -93,8 +93,8 @@ def create_samples(id_samples, word_embs, raw_corpus):
         body_sample = []
         for qid in sample:
             title, body = raw_corpus[qid]
-            title_sample.append(line2vec(title, word_embs))
-            body_sample.append(line2vec(body, word_embs))
+            title_sample.append(line2vec(title, word_embs, word_embs_dim))
+            body_sample.append(line2vec(body, word_embs, word_embs_dim))
         all_samples.append((title_sample, body_sample))
     return np.array(all_samples)
 
@@ -126,7 +126,7 @@ def build_batches(train_file, dev_file, test_file, word_embs_file, query_corpus_
 
     train_ids = read_train_set(train_file)
     id_samples = create_id_samples(train_ids)
-    train_samples = create_samples(id_samples, word_embeddings, raw_corpus)
+    train_samples = create_samples(id_samples, word_embeddings, raw_corpus, 200)
     train_batches = create_train_batches(batch_size, train_samples)
 
     dev_corpus, dev_id_samples, dev_labs = read_dev_test(dev_file)
@@ -206,59 +206,68 @@ def read_eval_Android(pos_file, neg_file, word_embs, android_corpus):
 			qid, rid = line.strip().split()
 			q_title, q_body = android_corpus[qid]
 			r_title, r_body = android_corpus[rid]
-    		titles.append(line2vec_direct_transfer(q_title, word_embs))
-    		bodies.append(line2vec_direct_transfer(q_body, word_embs))
-    		titles.append(line2vec_direct_transfer(r_title, word_embs))
-    		bodies.append(line2vec_direct_transfer(r_body, word_embs))
-    		labels.extend([1,1])
-    with open(android_test_pos_file) as neg:
-    	for line in neg:
-    		qid, rid = line.strip().split()
-    		q_title, q_body = android_corpus[qid]
-    		r_title, r_body = android_corpus[rid]
-    		titles.append(line2vec_direct_transfer(q_title, word_embs))
-    		bodies.append(line2vec_direct_transfer(q_body, word_embs))
-    		titles.append(line2vec_direct_transfer(r_title, word_embs))
-    		bodies.append(line2vec_direct_transfer(r_body, word_embs))
-    		labels.append([0,0])
-    return [titles, bodies], labels
+			titles.append(line2vec_direct_transfer(q_title, word_embs))
+			bodies.append(line2vec_direct_transfer(q_body, word_embs))
+			titles.append(line2vec_direct_transfer(r_title, word_embs))
+			bodies.append(line2vec_direct_transfer(r_body, word_embs))
+			labels.extend([1,1])
+
+	with open(android_test_pos_file) as neg:
+		for line in neg:
+			qid, rid = line.strip().split()
+			q_title, q_body = android_corpus[qid]
+			r_title, r_body = android_corpus[rid]
+			titles.append(line2vec_direct_transfer(q_title, word_embs))
+			bodies.append(line2vec_direct_transfer(q_body, word_embs))
+			titles.append(line2vec_direct_transfer(r_title, word_embs))
+			bodies.append(line2vec_direct_transfer(r_body, word_embs))
+			labels.append([0,0])
+	return [titles, bodies], labels
 
 # ============================================================================
 # Part 2 - Direct Transfer
 # ============================================================================
 
+# def batch_test(pos_file, neg_file, word_embs, android_corpus):
+# 	id_to_pos = {}
+# 	with open(pos_file) as pos:
+# 		for line in pos:
+# 			qid, rid = line.strip().split()
+# 			id_to_pos[qid] = [rid]
+# 	return id_to_pos
+
 def build_direct_transfer_data(ubuntu_train_file, android_test_pos_file, android_test_neg_file, word_embs_file, ubuntu_corpus_file, android_corpus_file, batch_size):
 	word_embs = read_word_embeddings(word_embs_file)
 
 	raw_corpus = read_corpus(ubuntu_corpus_file)
-	train_ids = read_train_set(train_file)
-    id_samples = create_id_samples(train_ids)
-    train_samples = create_samples(id_samples, word_embeddings, raw_corpus)
-    train_batches = create_train_batches(batch_size, train_samples)
+	train_ids = read_train_set(ubuntu_train_file)
+	id_samples = create_id_samples(train_ids)
+	train_samples = create_samples(id_samples, word_embs, raw_corpus, 300)
+	train_batches = create_train_batches(batch_size, train_samples)
 
-    android_corpus = read_corpus(android_corpus_file)
+	android_corpus = read_corpus(android_corpus_file)
 
-    test_data, test_labels = read_eval_Android(android_test_pos_file, android_test_neg_file, word_embs_file, android_corpus)
+	test_data, test_labels = read_eval_Android(android_test_pos_file, android_test_neg_file, word_embs, android_corpus)
 
-    return train_batches, test_data, test_labels
+	return train_batches, test_data, test_labels
 
 # ============================================================================
 # Part 2 - Adversarial Domain Adaptation
 # ============================================================================
+'''
+def build_classifier_batches(ubuntu_corpus_file, android_corpus_file, word_embs_file, batch_size):
+	word_embeddings = read_word_embeddings(word_embs_file)
+	ubuntu_corpus = read_corpus(ubuntu_corpus_file)
+	android_corpus = read_corpus(android_corpus_file)
 
-# def build_classifier_batches(ubuntu_corpus_file, android_corpus_file, word_embs_file, batch_size):
-# 	word_embeddings = read_word_embeddings(word_embs_file)
-# 	ubuntu_corpus = read_corpus(ubuntu_corpus_file)
-# 	android_corpus = read_corpus(android_corpus_file)
+	ubuntu_keys = ubuntu_corpus.keys()
+	android_keys = android_corpus.keys()
 
-# 	ubuntu_keys = ubuntu_corpus.keys()
-# 	android_keys = android_corpus.keys()
-
-# 	min_size = min(len(ubuntu_corpus), len(android_corpus))
-# 	for i in range(int(min_size / batch_size)):
-# 		for j in range(batch_size):
-# 			index = i * batch_size + j
-
+	min_size = min(len(ubuntu_corpus), len(android_corpus))
+	for i in range(int(min_size / batch_size)):
+		for j in range(batch_size):
+			index = i * batch_size + j
+'''
 def build_classifier_batches(ubuntu_corpus_file, android_corpus_file, word_embs_file, batch_size):
     '''
     builds batches of size 40, with half ubuntu and half android
@@ -294,14 +303,14 @@ def build_classifier_batches(ubuntu_corpus_file, android_corpus_file, word_embs_
         for j in range(batch_size): # for question in batch
             index = i * batch_size + j
 
-            new_body_batch.append(line2vecglove(ubuntu_questions[index][1], word_embeddings))
+            new_body_batch.append(line2vec(ubuntu_questions[index][1], word_embeddings, 300))
             new_label_body_batch.append(0)
-            new_body_batch.append(line2vecglove(android_questions[index][1], word_embeddings))
+            new_body_batch.append(line2vec(android_questions[index][1], word_embeddings, 300))
             new_label_body_batch.append(1)
 
-            new_title_batch.append(line2vecglove(ubuntu_questions[index][0], word_embeddings))
+            new_title_batch.append(line2vec(ubuntu_questions[index][0], word_embeddings, 300))
             new_label_title_batch.append(0)
-            new_title_batch.append(line2vecglove(android_questions[index][0], word_embeddings))
+            new_title_batch.append(line2vec(android_questions[index][0], word_embeddings, 300))
             new_label_title_batch.append(1)
 
             if len(new_body_batch) > 40:
@@ -321,5 +330,4 @@ android_corpus = "../data/android-master/corpus-lower.tsv"
 glove_embeddings = "../data/android-master/glove.pruned.txt"
 query_corpus_file = "../data/askubuntu-master/text_tokenized.txt.gz"
 # build_classifier_batches(query_corpus_file, android_corpus, glove_embeddings, 40)
-
 

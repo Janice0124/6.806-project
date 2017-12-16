@@ -188,8 +188,52 @@ def create_dev_test_data(samples, labs, word_embs, raw_corpus):
 # ============================================================================
 # Part 2 - Direct Transfer
 # ============================================================================
+def line2vec_direct_transfer(sentence, word_embeddings):
+	feature = np.array([0.0 for i in range(300)])
+	num_words = 0
+	for word in sentence:
+		if word in word_embeddings:
+			num_words += 1
+			feature += word_embeddings[word]
+	return feature / float(num_words) if num_words != 0 else feature
 
 
+def build_direct_transfer_data(ubuntu_train_file, android_test_pos_file, android_test_neg_file, word_embs_file, ubuntu_corpus_file, android_corpus_file, batch_size):
+	word_embs = read_word_embeddings(word_embs_file)
+
+	raw_corpus = read_corpus(ubuntu_corpus_file)
+	train_ids = read_train_set(train_file)
+    id_samples = create_id_samples(train_ids)
+    train_samples = create_samples(id_samples, word_embeddings, raw_corpus)
+    train_batches = create_train_batches(batch_size, train_samples)
+
+    android_corpus = read_corpus(android_corpus_file)
+    titles = []
+    bodies = []
+    labels = []
+
+    with open(android_test_pos_file) as test_pos:
+    	for line in test_pos:
+    		qid, rid = line.strip().split()
+    		q_title, q_body = android_corpus[qid]
+    		r_title, r_body = android_corpus[rid]
+    		titles.append(line2vec_direct_transfer(q_title, word_embs))
+    		bodies.append(line2vec_direct_transfer(q_body, word_embs))
+    		titles.append(line2vec_direct_transfer(r_title, word_embs))
+    		bodies.append(line2vec_direct_transfer(r_body, word_embs))
+    		labels.extend([1,1])
+
+    with open(android_test_neg_file) as test_neg:
+    	for line in test_neg:
+    		qid, rid = line.strip().split()
+    		q_title, q_body = android_corpus[qid]
+    		r_title, r_body = android_corpus[rid]
+    		titles.append(line2vec_direct_transfer(q_title, word_embs))
+    		bodies.append(line2vec_direct_transfer(q_body, word_embs))
+    		titles.append(line2vec_direct_transfer(r_title, word_embs))
+    		bodies.append(line2vec_direct_transfer(r_body, word_embs))
+    		labels.append([0,0])
+    return ([titles, bodies], labels)
 
 
 # ============================================================================

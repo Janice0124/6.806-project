@@ -23,8 +23,8 @@ android_neg_dev = "../data/android-master/dev.neg.txt"
 android_pos_dev = "../data/android-master/dev.pos.txt"
 android_neg_test = "../data/android-master/test.neg.txt"
 android_pos_test = "../data/android-master/test.pos.txt"
-android_corpus = "../data/android-master/corpus-lower.tsv"
-glove_embeddings = "../data/android-master/glove.pruned.txt"
+android_corpus_file = "../data/android-master/corpus-lower.tsv.gz"
+glove_embeddings_file = "../data/android-master/glove.pruned.txt"
 
 torch.manual_seed(1)
 batch_size = 20
@@ -40,8 +40,13 @@ hidden_dim = 300
 # dev_x = extract_features(dev_x)
 # test_x = extract_features(test_x)
 
+android_corpus = inout.read_corpus(android_corpus_file)
+glove_embeddings = inout.read_word_embeddings(glove_embeddings_file)
 train_batches, dev_data, dev_labels, test_data, test_labels = inout.build_batches(train_file, dev_file, test_file, word_embs_file, query_corpus_file, 20)
-classifier_batches = inout.build_classifier_batches(query_corpus_file, android_corpus, glove_embeddings, 40)
+classifier_batches = inout.build_classifier_batches(query_corpus_file, android_corpus_file, glove_embeddings_file, 40)
+(android_titles_bodies, android_labels) = inout.read_eval_Android(android_pos_dev,android_neg_dev,glove_embeddings,android_corpus)
+dev_data_android = android_titles_bodies
+dev_labels_android = android_labels
 # train_dataset = torch.utils.data.TensorDataset(torch.FloatTensor(train_x), torch.LongTensor(train_y))
 # dev_dataset = torch.utils.data.TensorDataset(torch.FloatTensor(dev_x), torch.LongTensor(dev_y))
 # test_dataset = torch.utils.data.TensorDataset(torch.FloatTensor(test_x), torch.LongTensor(test_y))
@@ -89,6 +94,16 @@ class LSTM(nn.Module):
         output, (h_n, c_n) = self.lstm(x, (h0, c0))
         return output
 
+    # def __init__(self, embeddings, args):
+    #     super(LSTM, self).__init__()
+    #     self.args = args
+    #     # self.hidden = self.init_hidden(20)
+    #     self.lstm = nn.LSTM(input_size=200, hidden_size=100, num_layers=1, batch_first=True)
+
+    # def init_hidden(self, batch_size):
+    #     return (torch.autograd.Variable(torch.zeros(2,batch_size,100)),
+    #             torch.autograd.Variable(torch.zeros(2,batch_size,100)))
+
 class CNN(nn.Module):
     # def __init__(self, embeddings, args):
     #     super(CNN, self).__init__()
@@ -104,7 +119,7 @@ class CNN(nn.Module):
     #     out = torch.mean(out, 2)
     #     # print("size of out", out.size())
     #     return out
-    
+
 class DomainClassifier(nn.Module):
     def __init__(self, embeddings, args):
         super(DomainClassifier, self).__init__()
@@ -122,7 +137,7 @@ class DomainClassifier(nn.Module):
         x = self.softmax(x)
         return x
 
-def train(model, da_dan_model, train_data, max_epoches, dev_data, dev_labels, domain_adaption=False, domain_adapation_batches=None, verbose=False):
+def train(model, da_dan_model, train_data, max_epoches, dev_data, dev_labels, dev_data_android, dev_labels_android, domain_adaption=False, domain_adapation_batches=None, verbose=False):
     model.train()
     weight_decay = 1e-5# 1e-5
     lr = 1e-3# 1e-3
@@ -228,8 +243,9 @@ def train(model, da_dan_model, train_data, max_epoches, dev_data, dev_labels, do
                 loss.backward()
                 optimizer.step()
 
-            
-        evaluate(dev_data, dev_labels, model) # evaluate on android dataset
+        if domain_adaption:
+            evaluate(dev_data_android, dev_labels_android, da_dan_model)
+        evaluate(dev_data, dev_labels, model) 
 
         # dev_title_output = model(dev_title_embs)
         # dev_body_output = model(dev_body_embs)
@@ -303,7 +319,7 @@ def compute_scores(data, labels, model):
 
 # train(model, train_batches, 50, dev_data, dev_labels)
 
-train(DAN(train_batches, [200]), DAN(train_batches, [300]), train_batches, 50, dev_data, dev_labels, domain_adaption=True, domain_adapation_batches=classifier_batches, verbose=False)
+train(DAN(train_batches, [200]), DAN(train_batches, [300]), train_batches, 50, dev_data, dev_labels, dev_data_android, dev_labels_android, domain_adaption=True, domain_adapation_batches=classifier_batches, verbose=False)
 #CHANGE NUM EPOCHS
 
 

@@ -3,7 +3,7 @@ import gzip
 import random
 import numpy as np
 
-# text_tokenized.txt.gz
+# text_tokenized.txt.gz, corpus-lower.tsv.gz
 # maps query IDs to their title and body, body is a list of words
 def read_corpus(path):
     raw_corpus = {}
@@ -16,7 +16,7 @@ def read_corpus(path):
             raw_corpus[query_id] = (title, body)
     return raw_corpus
 
-# vectors_pruned.200.txt.gz
+# vectors_pruned.200.txt.gz, glove.pruned.txt.gz
 # Maps a word to 200-dimension (1D array) feature vector
 def read_word_embeddings(path):
 	word_embs = {}
@@ -177,3 +177,5 @@ def create_dev_test_data(samples, labs, word_embs, raw_corpus):
 		labels.extend(labs[i])
 
 	return ([title_data, body_data], labels)
+
+

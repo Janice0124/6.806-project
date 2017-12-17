@@ -316,7 +316,7 @@ glove_embeddings = utils.read_word_embeddings(word_embs_file)
 ubuntu_train_batches, dev_data_android, dev_labels_android, test_data_android, test_labels_android, classifier_data = utils.build_domain_adapt_data(train_file, android_pos_dev, android_neg_dev, android_pos_test, android_neg_test, word_embs_file, ubuntu_corpus_file, android_corpus_file, 20, 40)
 dan_model = DAN(ubuntu_train_batches, [300])
 
-train(dan_model, ubuntu_train_batches, 30, dev_data_android, dev_labels_android, classifier_data, verbose=False)
+train(dan_model, ubuntu_train_batches, 8, dev_data_android, dev_labels_android, classifier_data, verbose=False)
 print "now testing"
 get_auc(test_data_android, test_labels_android, dan_model)
 #CHANGE NUM EPOCHS

@@ -21,10 +21,12 @@ ubuntu_corpus_file = "../data/askubuntu-master/text_tokenized.txt.gz"
 
 android_corpus_file = "../data/android-master/corpus-lower.tsv.gz"
 glove_embeddings = "../data/android-master/glove.pruned.txt.gz"
+android_pos_dev = "../data/android-master/dev.pos.txt"
+android_neg_dev = "../data/android-master/dev.neg.txt"
 android_test_pos = "../data/Android-master/test.pos.txt"
 android_test_neg = "../data/Android-master/test.neg.txt"
 
-train_data, test_data, test_labels = utils.build_direct_transfer_data(ubuntu_train_file, android_test_pos, android_test_neg, glove_embeddings, ubuntu_corpus_file, android_corpus_file, 20)
+train_data, dev_data, dev_labels, test_data, test_labels = utils.build_direct_transfer_data(ubuntu_train_file, android_pos_dev, android_neg_dev, android_test_pos, android_test_neg, glove_embeddings, ubuntu_corpus_file, android_corpus_file, 20)
 print "Created train and test data"
 
 class DAN(nn.Module):
@@ -34,10 +36,11 @@ class DAN(nn.Module):
         self.input_dim = args[0]
         # self.embedding_layer = nn.Embedding(len(embeddings), len(embeddings[0]))
         self.seq = nn.Sequential(
-                nn.Linear(self.input_dim, 200),
+                nn.Linear(self.input_dim, 300),
                 nn.ReLU(),
-                nn.Dropout(p=0.5),
-                nn.Linear(200,100), # try dropout layer w/ varying probabilities, weight decay
+                # nn.Dropout(p=0.5),
+                nn.Dropout(p=0.3),
+                nn.Linear(300,100), # try dropout layer w/ varying probabilities, weight decay
                 nn.Tanh())
 
     def forward(self, x):
@@ -46,12 +49,17 @@ class DAN(nn.Module):
         x = self.seq(x)
         return x
 
-def train(model, train_data, max_epoches, verbose=False):
+def train(model, train_data, dev_data, dev_labels, max_epoches, verbose=False):
     model.train()
     weight_decay = 1e-5 # 1e-5
     lr = 1e-3 # 1e-3
     dc_lr = 1e-3
     l = 1e-3 #lambda
+    lr = 0.0005
+    weight_decay=1
+
+
+
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     domain_classifier_optimizer = optim.Adam(model.parameters(), lr=lr)
     criterion = torch.nn.MultiMarginLoss(margin=0.2)
@@ -104,7 +112,7 @@ def train(model, train_data, max_epoches, verbose=False):
         # 	break
         print "=============="
 
-        # evaluate(dev_data, dev_labels, model) # evaluate on android dataset
+        evaluate(dev_data, dev_labels, model) # evaluate on android dataset
 
 def evaluate(model, test_data, test_labels):
 	m = AUCMeter()
@@ -133,7 +141,7 @@ def evaluate(model, test_data, test_labels):
 
 torch.manual_seed(1)
 model = DAN(train_data, [300])
-train(model, train_data, 20)
+train(model, train_data, dev_data, dev_labels, 20)
 evaluate(model, test_data, test_labels)
 
 

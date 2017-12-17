@@ -127,7 +127,7 @@ def build_batches(train_file, dev_file, test_file, word_embs_file, query_corpus_
 
     train_ids = read_train_set(train_file)
     id_samples = create_id_samples(train_ids)
-    train_samples = create_samples(id_samples[:5000], word_embeddings, raw_corpus, 200)
+    train_samples = create_samples(id_samples, word_embeddings, raw_corpus, 200)
     train_batches = create_train_batches(batch_size, train_samples)
     print "Train batches created"
 
@@ -217,8 +217,8 @@ def read_eval_Android(pos_file, neg_file, word_embs, android_corpus):
             titles.append(line2vec(r_title, word_embs, 300))
             bodies.append(line2vec(r_body, word_embs, 300))
             labels.extend([0,0])
-            if len(titles) > 3000:
-                break
+            # if len(titles) > 3000:
+            #     break
     print "Created Android negatives"
     return [titles, bodies], labels
 
@@ -278,7 +278,7 @@ def build_direct_transfer_data(ubuntu_train_file, android_test_pos_file, android
     id_samples = create_id_samples(train_ids)
     print "Created Train samples"
 
-    train_samples = create_samples(id_samples[:1000], word_embs, raw_corpus, 300)
+    train_samples = create_samples(id_samples, word_embs, raw_corpus, 300)
     train_batches = create_train_batches(batch_size, train_samples)
     print "Created Train Batches"
 
@@ -302,7 +302,7 @@ def build_domain_adapt_data(ubuntu_train_file, android_dev_pos_file, android_dev
     id_samples = create_id_samples(train_ids)
     print "Created Ubuntu Train samples"
 
-    train_samples = create_samples(id_samples[:5000], word_embs, ubuntu_corpus, 300)
+    train_samples = create_samples(id_samples, word_embs, ubuntu_corpus, 300)
     train_batches = create_train_batches(encoder_batch_size, train_samples)
     print "Created Ubuntu Train Batches"
 

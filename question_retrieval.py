@@ -73,8 +73,11 @@ class LSTM(nn.Module):
 
 	def forward(self, x):
 		batch_size = len(x)
+		x = x.unsqueeze(1)
+		x = x.permute(1,0,2)
 		h0, c0 = self.init_hidden(batch_size)
 		output, (h_n, c_n) = self.lstm(x, (h0, c0))
+		return output
 	
 
 class CNN(nn.Module):

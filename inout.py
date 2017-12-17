@@ -267,7 +267,7 @@ def read_eval_Android2(pos_file, neg_file, word_embs, android_corpus):
     #           id_to_pos[qid] = [rid]
     #   return id_to_pos
 '''
-def build_direct_transfer_data(ubuntu_train_file, android_dev_pos_file, android_dev_neg_file, android_test_pos_file, android_test_neg_file, word_embs_file, ubuntu_corpus_file, android_corpus_file, batch_size):
+def build_direct_transfer_data(ubuntu_train_file, android_test_pos_file, android_test_neg_file, word_embs_file, ubuntu_corpus_file, android_corpus_file, batch_size):
     word_embs = read_word_embeddings(word_embs_file)
     print "Read word embeddings"
 
@@ -278,17 +278,14 @@ def build_direct_transfer_data(ubuntu_train_file, android_dev_pos_file, android_
     id_samples = create_id_samples(train_ids)
     print "Created Train samples"
 
-    train_samples = create_samples(id_samples[:5000], word_embs, raw_corpus, 300)
+    train_samples = create_samples(id_samples, word_embs, raw_corpus, 300)
     train_batches = create_train_batches(batch_size, train_samples)
     print "Created Train Batches"
 
     android_corpus = read_corpus(android_corpus_file)
-    
-    dev_data, dev_labels = read_eval_Android(android_dev_pos_file, android_dev_neg_file, word_embs, android_corpus)
-
     test_data, test_labels = read_eval_Android(android_test_pos_file, android_test_neg_file, word_embs, android_corpus)
 
-    return train_batches, dev_data, dev_labels, test_data, test_labels
+    return train_batches, test_data, test_labels
 
 # ============================================================================
 # Part 2 - Adversarial Domain Adaptation

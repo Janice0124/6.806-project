@@ -69,13 +69,30 @@ class DomainClassifier(nn.Module):
                 nn.ReLU(),
                 nn.Linear(150,1))
         self.sigmoid = nn.Sigmoid()
+        self.softmax = nn.Softmax()
 
     def forward(self, x):
         x = self.seq(x)
         # print x.size()
         x = torch.squeeze(x)
         x = self.sigmoid(x)
+        # x = self.softmax(x)
         return x
+
+class LogisticRegression(nn.Module):
+    def __init__(self, embeddings, args):
+        super(LogisticRegression, self).__init__()
+        self.args = args
+        self.linear = nn.Linear(300, 1)
+        self.sigmoid = nn.Sigmoid()
+        self.softmax = nn.Softmax()
+    
+    def forward(self, x):
+        x = self.linear(x)
+        x = torch.squeeze(x)
+        x = self.sigmoid(x)
+        return x
+
 
 def train(dan_model, train_data, max_epoches, dev_data_android, dev_labels_android, classifier_data, verbose=False):
     dan_model.train()
@@ -95,6 +112,7 @@ def train(dan_model, train_data, max_epoches, dev_data_android, dev_labels_andro
     for i in range(len(da_bodies)):
         da_train_batches.append([da_bodies[i], da_titles[i]])
     da_model = DomainClassifier(da_train_batches, [])
+    # da_model = LogisticRegression(da_train_batches, [])
     da_model.train()
     domain_classifier_optimizer = optim.Adam(da_model.parameters(), lr=lr)
     criterion_da = nn.BCELoss()
@@ -308,13 +326,10 @@ get_auc(test_data_android, test_labels_android, dan_model)
 A) scikit learn tfidf TfidfVectorizer
 put in a sentence into tfidf -> output vector, gives diff type of representation
 cosine sims eval
-
 B) 
-
 2) Make domain classifier model, softmax, generates 0 or 1 (ubuntu or android)
 Loss = loss1-1e-3 loss2 (want loss2 to be bad). Train encoder on both losses
 Feed in batch 1: same as part 1
 Batch 2: nrandom ubuntu, nrandom android
-
 Report best hyperparams
 '''

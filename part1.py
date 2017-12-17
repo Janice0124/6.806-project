@@ -315,8 +315,8 @@ def compute_scores(data, labels, model):
 
 
 
-# model = DAN(train_batches, [])
-# model = LSTM(train_batches, [])
+# model = DAN(train_batches, [200])
+# model = LSTM(train_batches, [200])
 
 # train(model, train_batches, 50, dev_data, dev_labels)
 

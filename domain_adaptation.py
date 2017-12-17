@@ -79,12 +79,13 @@ class DomainClassifier(nn.Module):
 
 def train(dan_model, train_data, max_epoches, dev_data_android, dev_labels_android, classifier_data, verbose=False):
     dan_model.train()
-    # lr = 1e-3# 1e-3
-    weight_decay = 1
-    dropout = 0.3
-    lr = 0.0005
-    # dc_lr = 1e-3
+    weight_decay = 1e-5# 1e-5
+    lr = 1e-3# 1e-3
+    dc_lr = 1e-3
     l = 1e-5 #lambda
+    # weight_decay = 1
+    # dropout = 0.3
+    # lr = 0.0005
     optimizer = optim.Adam(dan_model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = torch.nn.MultiMarginLoss(margin=0.2)
     

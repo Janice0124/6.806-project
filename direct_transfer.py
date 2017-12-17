@@ -36,11 +36,10 @@ class DAN(nn.Module):
         self.input_dim = args[0]
         # self.embedding_layer = nn.Embedding(len(embeddings), len(embeddings[0]))
         self.seq = nn.Sequential(
-                nn.Linear(self.input_dim, 300),
+                nn.Linear(self.input_dim, 200),
                 nn.ReLU(),
-                # nn.Dropout(p=0.5),
-                nn.Dropout(p=0.3),
-                nn.Linear(300,100), # try dropout layer w/ varying probabilities, weight decay
+                nn.Dropout(p=0.5),
+                nn.Linear(200,100), # try dropout layer w/ varying probabilities, weight decay
                 nn.Tanh())
 
     def forward(self, x):
@@ -55,10 +54,8 @@ def train(model, train_data, dev_data, dev_labels, max_epoches, verbose=False):
     lr = 1e-3 # 1e-3
     dc_lr = 1e-3
     l = 1e-3 #lambda
-    lr = 0.0005
-    weight_decay=1
-
-
+    # lr = 0.0005
+    # weight_decay=1
 
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     domain_classifier_optimizer = optim.Adam(model.parameters(), lr=lr)

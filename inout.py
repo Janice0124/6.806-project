@@ -123,19 +123,23 @@ def create_train_batches(batch_size, train_samples):
 def build_batches(train_file, dev_file, test_file, word_embs_file, query_corpus_file, batch_size):
     word_embeddings = read_word_embeddings(word_embs_file)
     raw_corpus = read_corpus(query_corpus_file)
+    print "Corpus and embeddings read"
 
     train_ids = read_train_set(train_file)
     id_samples = create_id_samples(train_ids)
-    train_samples = create_samples(id_samples, word_embeddings, raw_corpus, 200)
+    train_samples = create_samples(id_samples[:5000], word_embeddings, raw_corpus, 200)
     train_batches = create_train_batches(batch_size, train_samples)
+    print "Train batches created"
 
     dev_corpus, dev_id_samples, dev_labs = read_dev_test(dev_file)
     dev_data, dev_labels = create_dev_test_data(dev_id_samples, dev_labs, word_embeddings, raw_corpus)
     # dev_samples = create_samples(dev_id_samples, word_embeddings, raw_corpus)
+    print "Dev data created"
 
     test_corpus, test_id_samples, test_labs = read_dev_test(test_file)
     test_data, test_labels = create_dev_test_data(test_id_samples, test_labs, word_embeddings, raw_corpus)
     # test_samples = create_samples(test_id_samples, word_embeddings, raw_corpus)
+    print "Test data created"
 
     return train_batches, dev_data, dev_labels, test_data, test_labels
 

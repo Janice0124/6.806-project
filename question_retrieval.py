@@ -75,33 +75,23 @@ class LSTM(nn.Module):
 		batch_size = len(x)
 		h0, c0 = self.init_hidden(batch_size)
 		output, (h_n, c_n) = self.lstm(x, (h0, c0))
-		return output
+	
 
-	# def __init__(self, embeddings, args):
-	#     super(LSTM, self).__init__()
-	#     self.args = args
-	#     # self.hidden = self.init_hidden(20)
-	#     self.lstm = nn.LSTM(input_size=200, hidden_size=100, num_layers=1, batch_first=True)
-
-	# def init_hidden(self, batch_size):
-	#     return (torch.autograd.Variable(torch.zeros(2,batch_size,100)),
-	#             torch.autograd.Variable(torch.zeros(2,batch_size,100)))
-
-# class CNN(nn.Module):
-	# def __init__(self, embeddings, args):
-	#     super(CNN, self).__init__()
-	#     self.args = args
-	#     self.conv1 = nn.Conv1d(200, 200, kernel_size=3)
+class CNN(nn.Module):
+	def __init__(self, embeddings, args):
+	    super(CNN, self).__init__()
+	    self.args = args
+	    self.conv1 = nn.Conv1d(200, 200, kernel_size=3)
 
 
-	# def forward(self, x):
-	#     # x = x.permute(0,2,1)
-	#     print x.size()
-	#     x = x.unsqueeze(2)
-	#     out = self.conv1(x)
-	#     out = torch.mean(out, 2)
-	#     # print("size of out", out.size())
-	#     return out
+	def forward(self, x):
+	    # x = x.permute(0,2,1)
+	    print x.size()
+	    x = x.unsqueeze(2)
+	    out = self.conv1(x)
+	    out = torch.mean(out, 2)
+	    # print("size of out", out.size())
+	    return out
 
 def train(model, train_data, max_epoches, dev_data, dev_labels, lr, weight_decay, verbose=False):
 	model.train()

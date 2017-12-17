@@ -95,13 +95,13 @@ def train(model, train_data, max_epoches, verbose=False):
             loss.backward()
             optimizer.step()
         print "Loss", loss
-        if (abs(loss[data][0] - prev_loss <= loss_range)):
-        	loss_count += 1
-        else:
-        	loss_count = 0
-        prev_loss = loss[data][0]
-        if loss_count >= 5:
-        	break
+        # if (abs(loss.data[0] - prev_loss <= loss_range)):
+        # 	loss_count += 1
+        # else:
+        # 	loss_count = 0
+        # prev_loss = loss.data[0]
+        # if loss_count >= 5:
+        # 	break
         print "=============="
 
         # evaluate(dev_data, dev_labels, model) # evaluate on android dataset

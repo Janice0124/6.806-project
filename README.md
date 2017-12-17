@@ -11,7 +11,7 @@ AskUbuntu dataset: https://github.com/taolei87/askubuntu
 
 # Code Structure
 
-da.py: Implementation and models for Domain Adaptation
+domain_adaptation.py: Implementation and models for Domain Adaptation
 
 direct_transfer.py: Direct transfer using models trained on AskUbuntu and evaluated on Android dataset
 
@@ -21,8 +21,8 @@ inout.py: Data pre-processing
 
 meter.py: AUC code taken from PyTorchNet (https://github.com/pytorch/tnt)
 
-part1.py: Implementation and models for Question Retrieval
+question_retrieval.py: Implementation and models for Question Retrieval
 
 tfidf.py: TF-IDF evaluation for unsupervised methods
 
-Please run each file (da.py, direct_transfer.py, part1.py) directly. The best hyperparameters are included in the models. 
+Please run each file (da.py, direct_transfer.py, question_retrieval.py) directly. The best hyperparameters are included in the models. 

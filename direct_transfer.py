@@ -104,7 +104,7 @@ def train(model, train_data, max_epoches, verbose=False):
         # 	break
         print "=============="
 
-        evaluate(dev_data, dev_labels, model) # evaluate on android dataset
+        # evaluate(dev_data, dev_labels, model) # evaluate on android dataset
 
 def evaluate(model, test_data, test_labels):
 	m = AUCMeter()

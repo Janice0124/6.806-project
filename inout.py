@@ -278,7 +278,7 @@ def build_direct_transfer_data(ubuntu_train_file, android_test_pos_file, android
     id_samples = create_id_samples(train_ids)
     print "Created Train samples"
 
-    train_samples = create_samples(id_samples, word_embs, raw_corpus, 300)
+    train_samples = create_samples(id_samples[:1000], word_embs, raw_corpus, 300)
     train_batches = create_train_batches(batch_size, train_samples)
     print "Created Train Batches"
 

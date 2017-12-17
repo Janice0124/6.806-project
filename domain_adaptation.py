@@ -198,61 +198,61 @@ def get_auc(data, labels, model):
     m = meter.AUCMeter()
     scores = []
     titles, bodies = data
-    # score_labels = []
-    # for i in range(len(labels)/2):
-    #     q = 2 * i
-    #     r = 2 * i + 1
-    #     title_q = titles[q]
-    #     body_q = bodies[q]
-    #     title_q_emb = Variable(torch.FloatTensor(title_q))
-    #     body_q_emb = Variable(torch.FloatTensor(body_q))
-    #     title_q_output = model(title_q_emb)
-    #     body_q_output = model(body_q_emb)
-    #     q_emb = (title_q_output + body_q_output)/2.
+    score_labels = []
+    for i in range(len(labels)/2):
+        q = 2 * i
+        r = 2 * i + 1
+        title_q = titles[q]
+        body_q = bodies[q]
+        title_q_emb = Variable(torch.FloatTensor(title_q))
+        body_q_emb = Variable(torch.FloatTensor(body_q))
+        title_q_output = model(title_q_emb)
+        body_q_output = model(body_q_emb)
+        q_emb = (title_q_output + body_q_output)/2.
 
-    #     title_r = titles[r]
-    #     body_r = bodies[r]
-    #     title_r_emb = Variable(torch.FloatTensor(title_r))
-    #     body_r_emb = Variable(torch.FloatTensor(body_q))
-    #     title_r_out = model(title_r_emb)
-    #     body_r_out = model(body_r_emb)
-    #     r_emb = (title_r_out + body_r_out)/2.
+        title_r = titles[r]
+        body_r = bodies[r]
+        title_r_emb = Variable(torch.FloatTensor(title_r))
+        body_r_emb = Variable(torch.FloatTensor(body_q))
+        title_r_out = model(title_r_emb)
+        body_r_out = model(body_r_emb)
+        r_emb = (title_r_out + body_r_out)/2.
 
-    #     cos_sim = F.cosine_similarity(q_emb, r_emb, dim=0, eps=1e-6)
-    #     scores.append(cos_sim.data[0])
-    #     score_labels.append(labels[r])
+        cos_sim = F.cosine_similarity(q_emb, r_emb, dim=0, eps=1e-6)
+        scores.append(cos_sim.data[0])
+        score_labels.append(labels[r])
 
-
-    # scores = np.asarray(scores)
-    # score_labels = np.asarray(score_labels)
-    # print scores.shape, score_labels.shape
-    # test = torch.FloatTensor(scores)
-    # test1 = torch.FloatTensor(score_labels)
-    # m.add(scores, score_labels)
-    # print m.value(max_fpr=0.05)
-
-    for i in range(len(labels)):
-        titles_i = titles[i]
-        bodies_i = bodies[i]
-        labels_i = labels[i]
-        title_embeddings = Variable(torch.FloatTensor(titles_i))
-        body_embeddings = Variable(torch.FloatTensor(bodies_i))
-        title_output = model(title_embeddings)
-        body_output = model(body_embeddings)
-        question_embeddings = (title_output + body_output)/2.
-        question_embeddings_query = torch.unsqueeze(question_embeddings[0], 1) 
-        question_embeddings_candidates = torch.unsqueeze(question_embeddings[1:], 1) 
-        # print question_embeddings_query.size(), question_embeddings_candidates.size()
-        scores.append(F.cosine_similarity(torch.t(question_embeddings_query), torch.t(question_embeddings_candidates)).data.cpu().numpy()[0])
-    # print type(scores), type(labels), type(scores[0]), type(labels[0])
 
     scores = np.asarray(scores)
-    labels = np.asarray(labels)
-    print scores.shape, labels.shape
+    score_labels = np.asarray(score_labels)
+    print scores.shape, score_labels.shape
     test = torch.FloatTensor(scores)
-    test1 = torch.FloatTensor(labels)
-    m.add(scores, labels)
+    test1 = torch.FloatTensor(score_labels)
+    m.add(scores, score_labels)
     print m.value(max_fpr=0.05)
+
+    # for i in range(len(labels)):
+    #     titles_i = titles[i]
+    #     bodies_i = bodies[i]
+    #     labels_i = labels[i]
+    #     title_embeddings = Variable(torch.FloatTensor(titles_i))
+    #     body_embeddings = Variable(torch.FloatTensor(bodies_i))
+    #     title_output = model(title_embeddings)
+    #     body_output = model(body_embeddings)
+    #     question_embeddings = (title_output + body_output)/2.
+    #     question_embeddings_query = torch.unsqueeze(question_embeddings[0], 1) 
+    #     question_embeddings_candidates = torch.unsqueeze(question_embeddings[1:], 1) 
+    #     # print question_embeddings_query.size(), question_embeddings_candidates.size()
+    #     scores.append(F.cosine_similarity(torch.t(question_embeddings_query), torch.t(question_embeddings_candidates)).data.cpu().numpy()[0])
+    # # print type(scores), type(labels), type(scores[0]), type(labels[0])
+
+    # scores = np.asarray(scores)
+    # labels = np.asarray(labels)
+    # print scores.shape, labels.shape
+    # test = torch.FloatTensor(scores)
+    # test1 = torch.FloatTensor(labels)
+    # m.add(scores, labels)
+    # print m.value(max_fpr=0.05)
 
 def evaluate(data, labels, model):
     res = [ ]
@@ -316,7 +316,7 @@ glove_embeddings = utils.read_word_embeddings(word_embs_file)
 ubuntu_train_batches, dev_data_android, dev_labels_android, test_data_android, test_labels_android, classifier_data = utils.build_domain_adapt_data(train_file, android_pos_dev, android_neg_dev, android_pos_test, android_neg_test, word_embs_file, ubuntu_corpus_file, android_corpus_file, 20, 40)
 dan_model = DAN(ubuntu_train_batches, [300])
 
-train(dan_model, ubuntu_train_batches, 5, dev_data_android, dev_labels_android, classifier_data, verbose=False)
+train(dan_model, ubuntu_train_batches, 30, dev_data_android, dev_labels_android, classifier_data, verbose=False)
 print "now testing"
 get_auc(test_data_android, test_labels_android, dan_model)
 #CHANGE NUM EPOCHS

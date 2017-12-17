@@ -32,12 +32,7 @@ torch.manual_seed(1)
 batch_size = 20
 hidden_dim = 300
 
-android_corpus = utils.read_corpus(android_corpus_file)
-glove_embeddings = utils.read_word_embeddings(word_embs_file)
-
 # train_batches, dev_data, dev_labels, test_data, test_labels = utils.build_batches(train_file, dev_file, test_file, word_embs_file, ubuntu_corpus_file, 20)
-
-ubuntu_train, dev_data_android, dev_labels_android, test_data_android, test_data_labels, classifier_batches = utils.build_domain_adapt_data(train_file, android_pos_dev, android_neg_dev, android_pos_test, android_neg_test, word_embs_file, ubuntu_corpus_file, android_corpus_file, 20, 40)
 
 # classifier_batches = utils.build_classifier_batches(ubuntu_corpus_file, android_corpus_file, word_embs_file, 40)
 # (android_titles_bodies, android_labels) = utils.read_eval_Android(android_pos_dev,android_neg_dev,glove_embeddings,android_corpus)
@@ -82,16 +77,27 @@ class DomainClassifier(nn.Module):
         x = self.sigmoid(x)
         return x
 
-def train(model, da_dan_model, train_data, max_epoches, dev_data, dev_labels, dev_data_android, dev_labels_android, domain_adapation_batches=None, verbose=False):
-    model.train()
-    weight_decay = 1e-5# 1e-5
-    lr = 1e-3# 1e-3
-    dc_lr = 1e-3
+def train(dan_model, train_data, max_epoches, dev_data_android, dev_labels_android, classifier_data, verbose=False):
+    dan_model.train()
+    # lr = 1e-3# 1e-3
+    weight_decay = 1
+    dropout = 0.3
+    lr = 0.0005
+    # dc_lr = 1e-3
     l = 1e-5 #lambda
-    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-    domain_classifier_optimizer = optim.Adam(model.parameters(), lr=lr)
+    optimizer = optim.Adam(dan_model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = torch.nn.MultiMarginLoss(margin=0.2)
+    
+    da_titles, da_bodies, da_labels = classifier_data
+    da_labels = np.asarray(da_labels)
+    da_train_batches = []
+    for i in range(len(da_bodies)):
+        da_train_batches.append([da_bodies[i], da_titles[i]])
+    da_model = DomainClassifier(da_train_batches, [])
+    da_model.train()
+    domain_classifier_optimizer = optim.Adam(da_model.parameters(), lr=lr)
     criterion_da = nn.BCELoss()
+
     best_dev = 0.0
     corresponding_test = 0.0
 
@@ -104,8 +110,8 @@ def train(model, da_dan_model, train_data, max_epoches, dev_data, dev_labels, de
             titles, bodies = batch
             title_embeddings = Variable(torch.FloatTensor(titles))
             body_embeddings = Variable(torch.FloatTensor(bodies))
-            title_output = model(title_embeddings)
-            body_output = model(body_embeddings)
+            title_output = dan_model(title_embeddings)
+            body_output = dan_model(body_embeddings)
             question_embeddings = (title_output + body_output)/2.
             # len(question_embeddings) = 440 = 22 * 20
             '''
@@ -125,10 +131,6 @@ def train(model, da_dan_model, train_data, max_epoches, dev_data, dev_labels, de
                         # X[i, j-1] = F.cosine_similarity(query_emb, question_embeddings[index], dim=1)
                         X.append(F.cosine_similarity(torch.t(query_emb), torch.t(question_embeddings_index), dim=1))
 
-            # for i in range(20): # b rows, b = number of instances in a batch
-            #     for j in range(21):
-            #         X[i,j] = F.cosine_similarity(torch.FloatTensor(question_embeddings[i][0]), torch.FloatTensor(question_embeddings[i][j]))
-
             Y = np.array([0 for i in range(20)])
             
             optimizer.zero_grad()
@@ -136,29 +138,18 @@ def train(model, da_dan_model, train_data, max_epoches, dev_data, dev_labels, de
             loss = criterion(torch.cat(X), Variable(torch.LongTensor(Y)))
             # print "loss", loss
             
-
             '''domain adaptation'''
-            bodies = domain_adapation_batches[0]['bodies']
-            titles = domain_adapation_batches[1]['titles']
-            labels = domain_adapation_batches[0]['labels'] # should be same for bodies and titles
-            labels = np.asarray(labels)
-
-            da_train_batches = []
-            for i in range(len(bodies)):
-                da_train_batches.append([bodies[i], titles[i]])
-            da_model = DomainClassifier(da_train_batches, [])
-            da_model.train()
             domain_classifier_optimizer.zero_grad()
 
-            title_embeddings = Variable(torch.FloatTensor(titles))
-            body_embeddings = Variable(torch.FloatTensor(bodies))
-            title_output = da_dan_model(title_embeddings)
-            body_output = da_dan_model(body_embeddings)
+            title_embeddings = Variable(torch.FloatTensor(da_titles))
+            body_embeddings = Variable(torch.FloatTensor(da_bodies))
+            title_output = dan_model(title_embeddings)
+            body_output = dan_model(body_embeddings)
             question_embeddings = (title_output + body_output)/2.
             question_labels = da_model(question_embeddings)
             # print type(question_labels), type(labels)
             # print question_labels, labels
-            da_loss = criterion_da((question_labels), Variable(torch.FloatTensor(labels)))
+            da_loss = criterion_da((question_labels), Variable(torch.FloatTensor(da_labels)))
             # print da_loss
             # print l*da_loss, loss
             total_loss = loss - l*da_loss
@@ -166,8 +157,8 @@ def train(model, da_dan_model, train_data, max_epoches, dev_data, dev_labels, de
             optimizer.step()
             domain_classifier_optimizer.step()
 
-        # evaluate(dev_data_android, dev_labels_android, da_dan_model)
-        get_auc(dev_data_android, dev_labels_android, da_dan_model)
+        # evaluate(dev_data_android, dev_labels_android, dan_model)
+        get_auc(dev_data_android, dev_labels_android, dan_model)
 
         # dev_title_output = model(dev_title_embs)
         # dev_body_output = model(dev_body_embs)
@@ -211,7 +202,6 @@ def get_auc(data, labels, model):
     test1 = torch.FloatTensor(labels)
     m.add(scores, labels)
     print m.value(max_fpr=0.05)
-
 
 def evaluate(data, labels, model):
     res = [ ]
@@ -268,7 +258,16 @@ def compute_scores(data, labels, model):
 # model = DAN(train_batches, [])
 # model = LSTM(train_batches, [])
 
-train(DAN(train_batches, [200]), DAN(train_batches, [300]), train_batches, 50, dev_data, dev_labels, dev_data_android, dev_labels_android, domain_adapation_batches=classifier_batches, verbose=False)
+
+android_corpus = utils.read_corpus(android_corpus_file)
+glove_embeddings = utils.read_word_embeddings(word_embs_file)
+
+ubuntu_train_batches, dev_data_android, dev_labels_android, test_data_android, test_labels_android, classifier_data = utils.build_domain_adapt_data(train_file, android_pos_dev, android_neg_dev, android_pos_test, android_neg_test, word_embs_file, ubuntu_corpus_file, android_corpus_file, 20, 40)
+dan_model = DAN(ubuntu_train_batches, [300])
+
+train(dan_model, ubuntu_train_batches, 30, dev_data_android, dev_labels_android, classifier_data, verbose=False)
+print "now testing"
+get_auc(test_data_android, test_labels_android, dan_model)
 #CHANGE NUM EPOCHS
 
 

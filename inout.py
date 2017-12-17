@@ -217,6 +217,8 @@ def read_eval_Android(pos_file, neg_file, word_embs, android_corpus):
             titles.append(line2vec(r_title, word_embs, 300))
             bodies.append(line2vec(r_body, word_embs, 300))
             labels.extend([0,0])
+            if len(titles) > 3000:
+                break
     print "Created Android negatives"
     return [titles, bodies], labels
 
@@ -293,14 +295,14 @@ def build_domain_adapt_data(ubuntu_train_file, android_dev_pos_file, android_dev
     word_embs = read_word_embeddings(word_embs_file)
     print "Read word embeddings"
 
-    raw_corpus = read_corpus(ubuntu_corpus_file)
+    ubuntu_corpus = read_corpus(ubuntu_corpus_file)
     print "Read ubuntu corpus"
 
     train_ids = read_train_set(ubuntu_train_file)
     id_samples = create_id_samples(train_ids)
     print "Created Ubuntu Train samples"
 
-    train_samples = create_samples(id_samples, word_embs, raw_corpus, 300)
+    train_samples = create_samples(id_samples[:5000], word_embs, ubuntu_corpus, 300)
     train_batches = create_train_batches(encoder_batch_size, train_samples)
     print "Created Ubuntu Train Batches"
 
@@ -314,9 +316,9 @@ def build_domain_adapt_data(ubuntu_train_file, android_dev_pos_file, android_dev
         word_embs, android_corpus)
     print "Created android test data"
 
-    classifier_batches = build_classifier_batches(ubuntu_corpus, android_corpus, word_embs, classifier_batch_size)
+    classifier_data = build_classifier_batches(ubuntu_corpus, android_corpus, word_embs, classifier_batch_size)
 
-    return train_batches, dev_data, dev_labels, test_data, test_labels, classifier_batches
+    return train_batches, dev_data, dev_labels, test_data, test_labels, classifier_data
 
 '''
 def build_classifier_batches(ubuntu_corpus_file, android_corpus_file, word_embs_file, batch_size):
@@ -332,54 +334,88 @@ def build_classifier_batches(ubuntu_corpus_file, android_corpus_file, word_embs_
         for j in range(batch_size):
             index = i * batch_size + j
 '''
-def build_classifier_batches(ubuntu_corpus, android_corpus, word_embeddings, batch_size):
+def build_classifier_batches(ubuntu_corpus, android_corpus, word_embs, classifier_batch_size):
     '''
     builds batches of size 40, with half ubuntu and half android
     '''
-    ubuntu_questions = []
-    android_questions = []
-    for question in ubuntu_corpus:
-        ubuntu_questions.append(ubuntu_corpus[question])
-    for question in android_corpus:
-        android_questions.append(android_corpus[question])
-
-    # print ubuntu_questions[:10]
+    batch_size = classifier_batch_size/2
 
     ubuntu_keys = ubuntu_corpus.keys()
     android_keys = android_corpus.keys()
 
-    body_batches = {'bodies': [], 'labels': []}
-    title_batches = {'titles': [], 'labels': []}
+    title_batches = []
+    body_batches = []
+    label_batches = []
 
-    min_size = min(len(ubuntu_corpus), len(android_corpus)) 
+    min_size = min(len(ubuntu_corpus), len(android_corpus))
+    min_size = 1000 # remove
 
-    min_size = 1000 # remove this
-
-    for i in range(int(min_size / batch_size)): # num batches = 40
-        new_body_batch = []
-        new_title_batch = []
-        new_label_body_batch = []
-        new_label_title_batch = []
-        for j in range(batch_size): # for question in batch
+    for i in range(int(min_size)/batch_size):
+        title_batch = []
+        body_batch = []
+        label_batch = []
+        for j in range(batch_size):
             index = i * batch_size + j
+            u_qid = ubuntu_keys[index]
+            u_title, u_body = ubuntu_corpus[u_qid]
+            a_qid = android_keys[index]
+            a_title, a_body = android_corpus[a_qid]
 
-            new_body_batch.append(line2vec(ubuntu_questions[index][1], word_embeddings, 300))
-            new_label_body_batch.append(0)
-            new_body_batch.append(line2vec(android_questions[index][1], word_embeddings, 300))
-            new_label_body_batch.append(1)
+            title_batch.append(line2vec(u_title, word_embs, 300))
+            body_batch.append(line2vec(u_body, word_embs, 300))
+            label_batch.append(0)
 
-            new_title_batch.append(line2vec(ubuntu_questions[index][0], word_embeddings, 300))
-            new_label_title_batch.append(0)
-            new_title_batch.append(line2vec(android_questions[index][0], word_embeddings, 300))
-            new_label_title_batch.append(1)
+            title_batch.append(line2vec(a_title, word_embs, 300))
+            body_batch.append(line2vec(a_body, word_embs, 300))
+            label_batch.append(1)
+        title_batches.append(title_batch)
+        body_batches.append(body_batch)
+        label_batches.append(label_batch)
+    return (title_batches, body_batches, label_batches)
 
-            if len(new_body_batch) > 40:
-                body_batches['bodies'].append(new_body_batch)
-                body_batches['labels'].append(new_label_body_batch)
-                title_batches['titles'].append(new_title_batch)
-                title_batches['labels'].append(new_label_title_batch)
-                break
-    return (body_batches, title_batches)
+    # ubuntu_questions = []
+    # android_questions = []
+    # for question in ubuntu_corpus:
+    #     ubuntu_questions.append(ubuntu_corpus[question])
+    # for question in android_corpus:
+    #     android_questions.append(android_corpus[question])
+
+    # # print ubuntu_questions[:10]
+
+    # ubuntu_keys = ubuntu_corpus.keys()
+    # android_keys = android_corpus.keys()
+
+    # body_batches = {'bodies': [], 'labels': []}
+    # title_batches = {'titles': [], 'labels': []}
+
+    # min_size = min(len(ubuntu_corpus), len(android_corpus)) 
+    # min_size = 1000 # remove this
+
+    # for i in range(int(min_size / batch_size)): # num batches = 40
+    #     new_body_batch = []
+    #     new_title_batch = []
+    #     new_label_body_batch = []
+    #     new_label_title_batch = []
+    #     for j in range(batch_size): # for question in batch
+    #         index = i * batch_size + j
+
+    #         new_body_batch.append(line2vec(ubuntu_questions[index][1], word_embs, 300))
+    #         new_label_body_batch.append(0)
+    #         new_body_batch.append(line2vec(android_questions[index][1], word_embs, 300))
+    #         new_label_body_batch.append(1)
+
+    #         new_title_batch.append(line2vec(ubuntu_questions[index][0], word_embs, 300))
+    #         new_label_title_batch.append(0)
+    #         new_title_batch.append(line2vec(android_questions[index][0], word_embs, 300))
+    #         new_label_title_batch.append(1)
+
+    #         if len(new_body_batch) > 40:
+    #             body_batches['bodies'].append(new_body_batch)
+    #             body_batches['labels'].append(new_label_body_batch)
+    #             title_batches['titles'].append(new_title_batch)
+    #             title_batches['labels'].append(new_label_title_batch)
+    #             break
+    # return (body_batches, title_batches)
 
 
 android_neg_dev = "../data/android-master/dev.neg.txt"

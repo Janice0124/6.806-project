@@ -249,8 +249,10 @@ def compute_scores(data, labels, model):
 
 lrs = [5e-4]
 weight_decays = [1]
-dropouts = [0, 0.1, 0.2, 0.3]
-hidden_dims = [250, 300]
+# dropouts = [0, 0.1, 0.2, 0.3]
+dropouts = [0.3]
+# hidden_dims = [250, 300]
+hidden_dims = [500, 600]
 
 for dr in dropouts:
 	for hidden_dim in hidden_dims:

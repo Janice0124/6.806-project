@@ -221,6 +221,7 @@ def read_eval_Android(pos_file, neg_file, word_embs, android_corpus):
     return [titles, bodies], labels
 
 def read_eval_Android2(pos_file, neg_file, word_embs, android_corpus):
+    # group pos and neg to query id, then choose 20 neg
     id_to_negs = {}
     with open(neg_file) as neg:
         for line in neg:
@@ -255,15 +256,15 @@ def read_eval_Android2(pos_file, neg_file, word_embs, android_corpus):
 # ============================================================================
 # Part 2 - Direct Transfer
 # ============================================================================
-
-# def batch_test(pos_file, neg_file, word_embs, android_corpus):
-#   id_to_pos = {}
-#   with open(pos_file) as pos:
-#       for line in pos:
-#           qid, rid = line.strip().split()
-#           id_to_pos[qid] = [rid]
-#   return id_to_pos
-
+'''
+    # def batch_test(pos_file, neg_file, word_embs, android_corpus):
+    #   id_to_pos = {}
+    #   with open(pos_file) as pos:
+    #       for line in pos:
+    #           qid, rid = line.strip().split()
+    #           id_to_pos[qid] = [rid]
+    #   return id_to_pos
+'''
 def build_direct_transfer_data(ubuntu_train_file, android_test_pos_file, android_test_neg_file, word_embs_file, ubuntu_corpus_file, android_corpus_file, batch_size):
     word_embs = read_word_embeddings(word_embs_file)
     print "Read word embeddings"
@@ -287,6 +288,36 @@ def build_direct_transfer_data(ubuntu_train_file, android_test_pos_file, android
 # ============================================================================
 # Part 2 - Adversarial Domain Adaptation
 # ============================================================================
+def build_domain_adapt_data(ubuntu_train_file, android_dev_pos_file, android_dev_neg_file, android_test_pos_file, android_test_neg_file, word_embs_file, ubuntu_corpus_file, android_corpus_file, encoder_batch_size, classifier_batch_size):
+    
+    word_embs = read_word_embeddings(word_embs_file)
+    print "Read word embeddings"
+
+    raw_corpus = read_corpus(ubuntu_corpus_file)
+    print "Read ubuntu corpus"
+
+    train_ids = read_train_set(ubuntu_train_file)
+    id_samples = create_id_samples(train_ids)
+    print "Created Ubuntu Train samples"
+
+    train_samples = create_samples(id_samples, word_embs, raw_corpus, 300)
+    train_batches = create_train_batches(encoder_batch_size, train_samples)
+    print "Created Ubuntu Train Batches"
+
+    android_corpus = read_corpus(android_corpus_file)
+    print "Read android corpus"
+
+    dev_data, dev_labels = read_eval_Android(android_dev_pos_file, android_dev_neg_file, word_embs, android_corpus)
+    print "Created android dev data"
+
+    test_data, test_labels = read_eval_Android(android_test_pos_file, android_test_neg_file, 
+        word_embs, android_corpus)
+    print "Created android test data"
+
+    classifier_batches = build_classifier_batches(ubuntu_corpus, android_corpus, word_embs, classifier_batch_size)
+
+    return train_batches, dev_data, dev_labels, test_data, test_labels, classifier_batches
+
 '''
 def build_classifier_batches(ubuntu_corpus_file, android_corpus_file, word_embs_file, batch_size):
     word_embeddings = read_word_embeddings(word_embs_file)
@@ -301,14 +332,10 @@ def build_classifier_batches(ubuntu_corpus_file, android_corpus_file, word_embs_
         for j in range(batch_size):
             index = i * batch_size + j
 '''
-def build_classifier_batches(ubuntu_corpus_file, android_corpus_file, word_embs_file, batch_size):
+def build_classifier_batches(ubuntu_corpus, android_corpus, word_embeddings, batch_size):
     '''
     builds batches of size 40, with half ubuntu and half android
     '''
-    word_embeddings = read_word_embeddings(word_embs_file)
-    ubuntu_corpus = read_corpus(ubuntu_corpus_file)
-    android_corpus = read_corpus(android_corpus_file)
-
     ubuntu_questions = []
     android_questions = []
     for question in ubuntu_corpus:

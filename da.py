@@ -7,55 +7,42 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torch.utils.data
 import gzip
-import inout
+import inout as utils
 from meter import AUCMeter
 from sklearn.feature_extraction.text import TfidfVectorizer
 from evaluation import Evaluation
 from tqdm import tqdm
 import meter
 
+word_embs_file = "../data/android-master/glove.pruned.txt"
+
 train_file = "../data/askubuntu-master/train_random.txt"
 dev_file = "../data/askubuntu-master/dev.txt"
 test_file = "../data/askubuntu-master/test.txt"
-word_embs_file = "../data/askubuntu-master/vector/vectors_pruned.200.txt"
-query_corpus_file = "../data/askubuntu-master/text_tokenized.txt.gz"
 
-android_neg_dev = "../data/android-master/dev.neg.txt"
-android_pos_dev = "../data/android-master/dev.pos.txt"
-android_neg_test = "../data/android-master/test.neg.txt"
-android_pos_test = "../data/android-master/test.pos.txt"
+ubuntu_corpus_file = "../data/askubuntu-master/text_tokenized.txt.gz"
 android_corpus_file = "../data/android-master/corpus-lower.tsv.gz"
-glove_embeddings_file = "../data/android-master/glove.pruned.txt"
+
+android_pos_dev = "../data/android-master/dev.pos.txt"
+android_neg_dev = "../data/android-master/dev.neg.txt"
+android_pos_test = "../data/android-master/test.pos.txt"
+android_neg_test = "../data/android-master/test.neg.txt"
 
 torch.manual_seed(1)
 batch_size = 20
 hidden_dim = 300
 
+android_corpus = utils.read_corpus(android_corpus_file)
+glove_embeddings = utils.read_word_embeddings(word_embs_file)
 
-# train_x, train_y = read_file("../data/askubuntu-master/train_random.txt")
-# dev_x, dev_y = read_file("../data/askubuntu-master/dev.txt")
-# test_x, test_y = read_file("../data/askubuntu-master/test.txt")
-# f = open('../data/askubuntu-master/vector/vectors_pruned.200.txt', 'r')
+# train_batches, dev_data, dev_labels, test_data, test_labels = utils.build_batches(train_file, dev_file, test_file, word_embs_file, ubuntu_corpus_file, 20)
 
-# train_x = extract_features(train_x)
-# dev_x = extract_features(dev_x)
-# test_x = extract_features(test_x)
+ubuntu_train, dev_data_android, dev_labels_android, test_data_android, test_data_labels, classifier_batches = utils.build_domain_adapt_data(train_file, android_pos_dev, android_neg_dev, android_pos_test, android_neg_test, word_embs_file, ubuntu_corpus_file, android_corpus_file, 20, 40)
 
-android_corpus = inout.read_corpus(android_corpus_file)
-glove_embeddings = inout.read_word_embeddings(glove_embeddings_file)
-train_batches, dev_data, dev_labels, test_data, test_labels = inout.build_batches(train_file, dev_file, test_file, word_embs_file, query_corpus_file, 20)
-classifier_batches = inout.build_classifier_batches(query_corpus_file, android_corpus_file, glove_embeddings_file, 40)
-(android_titles_bodies, android_labels) = inout.read_eval_Android(android_pos_dev,android_neg_dev,glove_embeddings,android_corpus)
-dev_data_android = android_titles_bodies
-dev_labels_android = android_labels
-
-# train_dataset = torch.utils.data.TensorDataset(torch.FloatTensor(train_x), torch.LongTensor(train_y))
-# dev_dataset = torch.utils.data.TensorDataset(torch.FloatTensor(dev_x), torch.LongTensor(dev_y))
-# test_dataset = torch.utils.data.TensorDataset(torch.FloatTensor(test_x), torch.LongTensor(test_y))
-
-# train_loader = torch.utils.data.DataLoader(train_dataset)
-# dev_loader = torch.utils.data.DataLoader(dev_dataset)
-# test_loader = torch.utils.data.DataLoader(test_dataset)
+# classifier_batches = utils.build_classifier_batches(ubuntu_corpus_file, android_corpus_file, word_embs_file, 40)
+# (android_titles_bodies, android_labels) = utils.read_eval_Android(android_pos_dev,android_neg_dev,glove_embeddings,android_corpus)
+# dev_data_android = android_titles_bodies
+# dev_labels_android = android_labels
 
 class DAN(nn.Module):
 
@@ -66,7 +53,7 @@ class DAN(nn.Module):
         self.seq = nn.Sequential(
                 nn.Linear(self.input_dim, 200),
                 nn.ReLU(),
-                nn.Dropout(p=0.0.05),
+                nn.Dropout(p=0.05),
                 nn.Linear(200,100), # try dropout layer w/ varying probabilities, weight decay
                 nn.Tanh())
 
@@ -95,7 +82,7 @@ class DomainClassifier(nn.Module):
         x = self.sigmoid(x)
         return x
 
-def train(model, da_dan_model, train_data, max_epoches, dev_data, dev_labels, dev_data_android, dev_labels_android, domain_adaption=False, domain_adapation_batches=None, verbose=False):
+def train(model, da_dan_model, train_data, max_epoches, dev_data, dev_labels, dev_data_android, dev_labels_android, domain_adapation_batches=None, verbose=False):
     model.train()
     weight_decay = 1e-5# 1e-5
     lr = 1e-3# 1e-3
@@ -116,15 +103,9 @@ def train(model, da_dan_model, train_data, max_epoches, dev_data, dev_labels, de
             batch_num+=1
             titles, bodies = batch
             title_embeddings = Variable(torch.FloatTensor(titles))
-            # title_embeddings = Variable(titles)
             body_embeddings = Variable(torch.FloatTensor(bodies))
-            # body_embeddings = Variable(bodies)
             title_output = model(title_embeddings)
             body_output = model(body_embeddings)
-            # print "title input", np.array(titles).shape
-            # print "title embeddings", title_embeddings.data.shape
-            # print "title output shape", title_output.data.shape
-            # question_embeddings = np.mean([title_output, body_output], axis=0)
             question_embeddings = (title_output + body_output)/2.
             # len(question_embeddings) = 440 = 22 * 20
             '''
@@ -136,17 +117,11 @@ def train(model, da_dan_model, train_data, max_epoches, dev_data, dev_labels, de
             for i in range(20):
                 query_emb = question_embeddings[i * 20]
                 for j in range(22):
-                    # print i, j, i*20, i*20+j
-                    # print type(question_embeddings[i*20])
                     if j != 0:
                         index = i * 20 + j
-                        # print query_emb.size()
-                        # print question_embeddings[index].size()
                         if query_emb.size()!=(100L,1L):
                             query_emb=torch.unsqueeze(query_emb, 1) 
-                        # print query_emb.size()
                         question_embeddings_index = torch.unsqueeze(question_embeddings[index], 1) 
-                        # print question_embeddings_index.size()
                         # X[i, j-1] = F.cosine_similarity(query_emb, question_embeddings[index], dim=1)
                         X.append(F.cosine_similarity(torch.t(query_emb), torch.t(question_embeddings_index), dim=1))
 
@@ -293,7 +268,7 @@ def compute_scores(data, labels, model):
 # model = DAN(train_batches, [])
 # model = LSTM(train_batches, [])
 
-train(DAN(train_batches, [200]), DAN(train_batches, [300]), train_batches, 50, dev_data, dev_labels, dev_data_android, dev_labels_android, domain_adaption=True, domain_adapation_batches=classifier_batches, verbose=False)
+train(DAN(train_batches, [200]), DAN(train_batches, [300]), train_batches, 50, dev_data, dev_labels, dev_data_android, dev_labels_android, domain_adapation_batches=classifier_batches, verbose=False)
 #CHANGE NUM EPOCHS
 
 

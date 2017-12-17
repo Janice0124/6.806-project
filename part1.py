@@ -12,6 +12,7 @@ from meter import AUCMeter
 from sklearn.feature_extraction.text import TfidfVectorizer
 from evaluation import Evaluation
 from tqdm import tqdm
+import meter
 
 train_file = "../data/askubuntu-master/train_random.txt"
 dev_file = "../data/askubuntu-master/dev.txt"
@@ -47,6 +48,7 @@ classifier_batches = inout.build_classifier_batches(query_corpus_file, android_c
 (android_titles_bodies, android_labels) = inout.read_eval_Android(android_pos_dev,android_neg_dev,glove_embeddings,android_corpus)
 dev_data_android = android_titles_bodies
 dev_labels_android = android_labels
+
 # train_dataset = torch.utils.data.TensorDataset(torch.FloatTensor(train_x), torch.LongTensor(train_y))
 # dev_dataset = torch.utils.data.TensorDataset(torch.FloatTensor(dev_x), torch.LongTensor(dev_y))
 # test_dataset = torch.utils.data.TensorDataset(torch.FloatTensor(test_x), torch.LongTensor(test_y))
@@ -62,10 +64,10 @@ class DAN(nn.Module):
         self.input_dim = args[0]
         # self.embedding_layer = nn.Embedding(len(embeddings), len(embeddings[0]))
         self.seq = nn.Sequential(
-                nn.Linear(self.input_dim, 200),
+                nn.Linear(self.input_dim, 150),
                 nn.ReLU(),
-                nn.Dropout(p=0.5),
-                nn.Linear(200,100), # try dropout layer w/ varying probabilities, weight decay
+                # nn.Dropout(p=0.1),
+                nn.Linear(150,100), # try dropout layer w/ varying probabilities, weight decay
                 nn.Tanh())
 
     def forward(self, x):
@@ -119,31 +121,14 @@ class CNN(nn.Module):
     #     out = torch.mean(out, 2)
     #     # print("size of out", out.size())
     #     return out
-    pass
 
-class DomainClassifier(nn.Module):
-    def __init__(self, embeddings, args):
-        super(DomainClassifier, self).__init__()
-        self.args = args
-        self.seq = nn.Sequential(
-                nn.Linear(100, 100),
-                nn.ReLU(),
-                nn.Linear(100,1))
-        self.softmax = nn.Softmax()
 
-    def forward(self, x):
-        x = self.seq(x)
-        # print x.size()
-        x = torch.squeeze(x)
-        x = self.softmax(x)
-        return x
-
-def train(model, da_dan_model, train_data, max_epoches, dev_data, dev_labels, dev_data_android, dev_labels_android, domain_adaption=False, domain_adapation_batches=None, verbose=False):
+def train(model, train_data, max_epoches, dev_data, dev_labels, verbose=False):
     model.train()
     weight_decay = 1e-5# 1e-5
     lr = 1e-3# 1e-3
     dc_lr = 1e-3
-    l = 1e-3 #lambda
+    l = 1e-5 #lambda
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     domain_classifier_optimizer = optim.Adam(model.parameters(), lr=lr)
     criterion = torch.nn.MultiMarginLoss(margin=0.2)
@@ -209,59 +194,12 @@ def train(model, da_dan_model, train_data, max_epoches, dev_data, dev_labels, de
 
             loss = criterion(torch.cat(X), Variable(torch.LongTensor(Y)))
             # print "loss", loss
-            
 
-            '''domain adaptation'''
+            loss.backward()
+            optimizer.step()
 
-            if domain_adaption:
-                bodies = domain_adapation_batches[0]['bodies']
-                titles = domain_adapation_batches[1]['titles']
-                labels = domain_adapation_batches[0]['labels'] # should be same for bodies and titles
-                labels = np.asarray(labels)
-
-                da_train_batches = []
-                for i in range(len(bodies)):
-                    da_train_batches.append([bodies[i], titles[i]])
-                da_model = DomainClassifier(da_train_batches, [])
-
-                title_embeddings = Variable(torch.FloatTensor(titles))
-                body_embeddings = Variable(torch.FloatTensor(bodies))
-                title_output = da_dan_model(title_embeddings)
-                body_output = da_dan_model(body_embeddings)
-                question_embeddings = (title_output + body_output)/2.
-                question_labels = da_model(question_embeddings)
-                # print type(question_labels), type(labels)
-                da_loss = criterion_da((question_labels), Variable(torch.FloatTensor(labels)))
-                # print da_loss
-                # print l*da_loss, loss
-                total_loss = loss - l*da_loss
-                domain_classifier_optimizer.zero_grad()
-                total_loss.backward()
-                optimizer.step()
-                domain_classifier_optimizer.step()
-
-            else: # if not domain adaptation
-                loss.backward()
-                optimizer.step()
-
-        if domain_adaption:
-            evaluate(dev_data_android, dev_labels_android, da_dan_model)
         evaluate(dev_data, dev_labels, model) 
 
-        # dev_title_output = model(dev_title_embs)
-        # dev_body_output = model(dev_body_embs)
-        # dev_question_output = np.mean(dev_title_output, dev_body_output, axis=0)
-    
-
-        # dev = evaluate(model, dev_loader)
-    #     dev = evaluate(model, dev_data)
-    #     # test = evaluate(model, test_loader)
-    #     test = evaluate(model, test_data)
-    #     if dev > best_dev:
-    #         best_dev = dev
-    #         corresponding_test = test
-
-    # print (best_dev, corresponding_test)
 
 def evaluate(data, labels, model):
     res = [ ]
@@ -315,26 +253,8 @@ def compute_scores(data, labels, model):
 
 
 
-# model = DAN(train_batches, [200])
-# model = LSTM(train_batches, [200])
+model = DAN(train_batches, [200])
+# model = LSTM(train_batches, [])
 
-# train(model, train_batches, 50, dev_data, dev_labels)
+train(model, train_batches, 50, dev_data, dev_labels)
 
-train(DAN(train_batches, [200]), DAN(train_batches, [300]), train_batches, 50, dev_data, dev_labels, dev_data_android, dev_labels_android, domain_adaption=True, domain_adapation_batches=classifier_batches, verbose=False)
-#CHANGE NUM EPOCHS
-
-
-'''
-A) scikit learn tfidf TfidfVectorizer
-put in a sentence into tfidf -> output vector, gives diff type of representation
-cosine sims eval
-
-B) 
-
-2) Make domain classifier model, softmax, generates 0 or 1 (ubuntu or android)
-Loss = loss1-1e-3 loss2 (want loss2 to be bad). Train encoder on both losses
-Feed in batch 1: same as part 1
-Batch 2: nrandom ubuntu, nrandom android
-
-Report best hyperparams
-'''
